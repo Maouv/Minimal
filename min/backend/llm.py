@@ -1,9 +1,10 @@
 # llm.py — LLM streaming wrapper
 # Pakai openai SDK dengan custom base_url — support semua OpenAI-compatible provider
 
+import re
 import openai
 import config
-from typing import Callable, AsyncIterator
+from typing import AsyncIterator
 from dataclasses import dataclass
 
 
@@ -22,27 +23,29 @@ def _client() -> openai.AsyncOpenAI:
 
 
 def _strip_thinking(content: str) -> str:
-    """
-    Strip thinking/reasoning content sebelum masuk message history.
-    Fixes aider bug: thinking content leak → infinite loop.
-    Format yang di-strip: <think>...</think>, <thinking>...</thinking>
-    """
-    import re
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
     content = re.sub(r"<thinking>.*?</thinking>", "", content, flags=re.DOTALL)
     return content.strip()
 
 
+def _inside_thinking(content: str) -> bool:
+    open_count = content.count("<think>") + content.count("<thinking>")
+    close_count = content.count("</think>") + content.count("</thinking>")
+    return open_count > close_count
+
+
+def clean_for_history(content: str) -> str:
+    return _strip_thinking(content)
+
+
 async def stream_chat(
     messages: list[dict],
     model: str,
-    on_token: Callable[[str], None],
     system_prompt: str = "",
-) -> Usage:
+) -> AsyncIterator[tuple[str | None, Usage | None]]:
     """
-    Stream chat completion. Panggil on_token untuk setiap token.
-    Return Usage setelah selesai.
-    Thinking content di-strip otomatis — tidak pernah masuk history.
+    Async generator — yield (token, None) per token, lalu (None, Usage) di akhir.
+    Thinking content di-skip otomatis, tidak pernah di-yield ke caller.
     """
     resolved_model = config.resolve_model(model)
 
@@ -61,40 +64,21 @@ async def stream_chat(
         stream_options={"include_usage": True},
     )
 
+    full_content = ""
     input_tokens = 0
     output_tokens = 0
-    full_content = ""
 
     async for chunk in stream:
-        # strip thinking chunks sebelum forward ke TUI
         if chunk.choices:
             delta = chunk.choices[0].delta
             if delta and delta.content:
                 token = delta.content
-                # kalau token adalah bagian dari thinking tag, skip
                 full_content += token
-                # hanya forward kalau bukan inside thinking block
                 if not _inside_thinking(full_content):
-                    on_token(token)
+                    yield token, None
 
         if chunk.usage:
             input_tokens = chunk.usage.prompt_tokens or 0
             output_tokens = chunk.usage.completion_tokens or 0
 
-    return Usage(input_tokens=input_tokens, output_tokens=output_tokens)
-
-
-def _inside_thinking(content: str) -> bool:
-    """Cek apakah posisi sekarang masih di dalam thinking block."""
-    open_count = content.count("<think>") + content.count("<thinking>")
-    close_count = content.count("</think>") + content.count("</thinking>")
-    return open_count > close_count
-
-
-def clean_for_history(content: str) -> str:
-    """
-    Bersihkan response sebelum disimpan ke message history.
-    Strip thinking, normalize whitespace.
-    """
-    return _strip_thinking(content)
-
+    yield None, Usage(input_tokens=input_tokens, output_tokens=output_tokens)

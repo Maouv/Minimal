@@ -1,5 +1,5 @@
 # session.py — session lifecycle + JSONL persistence
-# Format JSONL seperti Claude Code. Atomic write. Recovery dari korup.
+# Format JSONL seperti Claude Code. Append-only. Recovery dari korup.
 
 import json
 import uuid
@@ -17,28 +17,17 @@ class Session:
         self.created_at = datetime.now(timezone.utc)
         self.context = ContextManager()
         self.messages: list[dict] = []   # chat history (tanpa thinking)
-        self.last_edit: dict | None = None  # untuk /undo
+        self.last_edit: list | None = None  # untuk /undo
         self._path = config.sessions_dir() / f"{session_id}.jsonl"
 
     # --- Persistence ---
 
     async def save_line(self, record: dict):
-        """Append satu line ke JSONL. Atomic via tmp file rename."""
-        tmp = self._path.with_suffix(".jsonl.tmp")
+        """Append satu line ke JSONL."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
         line = json.dumps(record, default=str) + "\n"
-
-        # append ke tmp dulu
-        async with aiofiles.open(tmp, "a", encoding="utf-8") as f:
+        async with aiofiles.open(self._path, "a", encoding="utf-8") as f:
             await f.write(line)
-
-        # kalau main file belum ada, rename tmp → main
-        # kalau sudah ada, append langsung (tmp hanya untuk crash recovery)
-        if not self._path.exists():
-            tmp.rename(self._path)
-        else:
-            async with aiofiles.open(self._path, "a", encoding="utf-8") as f:
-                await f.write(line)
-            tmp.unlink(missing_ok=True)
 
     async def write_meta(self):
         await self.save_line({
@@ -51,7 +40,7 @@ class Session:
 
     async def write_message(self, role: str, content: str, usage: dict | None = None):
         record = {
-            "type": role,  # "user" atau "assistant"
+            "type": role,
             "content": content,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -91,7 +80,7 @@ class Session:
 
     @classmethod
     async def load(cls, session_id: str) -> "Session | None":
-        """Load session dari JSONL. Recovery kalau last line korup."""
+        """Load session dari JSONL. Skip lines yang korup."""
         path = config.sessions_dir() / f"{session_id}.jsonl"
         if not path.exists():
             return None
@@ -100,14 +89,14 @@ class Session:
         if not lines:
             return None
 
-        # ambil meta dari line pertama
         meta = lines[0] if lines[0].get("type") == "meta" else {}
-        model = meta.get("model", "")
+        model = meta.get("model", config.model())
         session = cls(session_id=session_id, model=model)
-        session.created_at = datetime.fromisoformat(meta.get("created_at", datetime.now().isoformat()))
+        session.created_at = datetime.fromisoformat(
+            meta.get("created_at", datetime.now(timezone.utc).isoformat())
+        )
         session._path = path
 
-        # rebuild message history
         for line in lines[1:]:
             t = line.get("type")
             if t in ("user", "assistant"):
@@ -119,7 +108,7 @@ class Session:
         return session
 
 
-# --- Session registry (in-memory, per backend process) ---
+# --- Session registry ---
 
 _sessions: dict[str, Session] = {}
 
@@ -147,7 +136,6 @@ async def get_or_load(session_id: str) -> Session | None:
 
 
 def list_all() -> list[dict]:
-    """List semua sessions dari disk."""
     sessions_dir = config.sessions_dir()
     result = []
     for path in sorted(sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -168,7 +156,7 @@ def list_all() -> list[dict]:
 # --- Helpers ---
 
 async def _read_jsonl_safe(path: Path) -> list[dict]:
-    """Read JSONL, skip/truncate korup lines. Recovery otomatis."""
+    """Read JSONL, skip lines yang korup."""
     async with aiofiles.open(path, "r", encoding="utf-8") as f:
         raw = await f.read()
 
@@ -179,8 +167,6 @@ async def _read_jsonl_safe(path: Path) -> list[dict]:
         try:
             lines.append(json.loads(line))
         except json.JSONDecodeError:
-            # last line korup — skip dan truncate
             break
 
     return lines
-

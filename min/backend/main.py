@@ -58,8 +58,6 @@ async def get_config() -> ConfigResponse:
 
 @app.post("/config/providers")
 async def update_provider(req: ProviderUpdateRequest):
-    # switch model mid-session tidak perlu restart
-    # model disimpan per-session, bukan global
     return {"ok": True, "model": req.model}
 
 
@@ -103,6 +101,41 @@ async def abort_session(session_id: str):
     return {"ok": True}
 
 
+# --- Context endpoints ---
+
+@app.post("/context/add")
+async def context_add(req: ContextAddRequest):
+    s = await session_store.get_or_load(req.session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    err = await s.context.add(req.path, readonly=req.readonly)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+    return {"files": [f.model_dump() for f in s.context.ls()]}
+
+
+@app.post("/context/drop")
+async def context_drop(req: ContextDropRequest):
+    s = await session_store.get_or_load(req.session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    err = s.context.drop(req.path)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+    return {"files": [f.model_dump() for f in s.context.ls()]}
+
+
+@app.get("/context")
+async def context_list(session_id: str):
+    s = await session_store.get_or_load(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {
+        "files": [f.model_dump() for f in s.context.ls()],
+        "total_tokens": s.context.total_tokens(),
+    }
+
+
 # --- Prompt + SSE stream ---
 
 @app.post("/session/{session_id}/init")
@@ -121,14 +154,8 @@ async def prompt(session_id: str, req: PromptRequest):
 async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     """Core prompt handler. Parse command, dispatch, stream response."""
 
-    async def sse(event_type: str, data: dict) -> str:
+    def sse(event_type: str, data: dict) -> str:
         return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-
-    async def ping_loop():
-        """Heartbeat setiap 2 detik selama stream aktif."""
-        while True:
-            await asyncio.sleep(2)
-            yield f"event: ping\ndata: {{}}\n\n"
 
     command = cmd_parser.parse(raw_input)
 
@@ -137,26 +164,26 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     if command.kind == "add":
         err = await s.context.add(command.args, readonly=command.readonly)
         if err:
-            yield await sse("error", {"message": err})
+            yield sse("error", {"message": err})
         else:
             files = s.context.ls()
-            yield await sse("context", {"files": [f.model_dump() for f in files]})
+            yield sse("context", {"files": [f.model_dump() for f in files]})
             await s.write_command(raw_input)
         return
 
     if command.kind == "drop":
         err = s.context.drop(command.args)
         if err:
-            yield await sse("error", {"message": err})
+            yield sse("error", {"message": err})
         else:
             files = s.context.ls()
-            yield await sse("context", {"files": [f.model_dump() for f in files]})
+            yield sse("context", {"files": [f.model_dump() for f in files]})
             await s.write_command(raw_input)
         return
 
     if command.kind == "ls":
         files = s.context.ls()
-        yield await sse("context", {
+        yield sse("context", {
             "files": [f.model_dump() for f in files],
             "total_tokens": s.context.total_tokens(),
         })
@@ -164,18 +191,17 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
 
     if command.kind == "clear":
         s.clear_messages()
-        yield await sse("clear", {})
+        yield sse("clear", {})
         return
 
     if command.kind == "reset":
         s.clear_messages()
         s.context = __import__("context").ContextManager()
-        yield await sse("reset", {})
+        yield sse("reset", {})
         return
 
     if command.kind == "tokens":
-        total_input = sum(m.get("usage", {}).get("input_tokens", 0) for m in s.messages if isinstance(m, dict))
-        yield await sse("tokens", {
+        yield sse("tokens", {
             "context_tokens": s.context.total_tokens(),
             "session_messages": len(s.messages),
         })
@@ -183,45 +209,42 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
 
     if command.kind == "model":
         s.model = config.resolve_model(command.args)
-        yield await sse("model", {"model": s.model})
+        yield sse("model", {"model": s.model})
         return
 
     if command.kind == "help":
-        yield await sse("text", {"content": cmd_parser.HELP_TEXT})
+        yield sse("text", {"content": cmd_parser.HELP_TEXT})
         return
 
     if command.kind == "undo":
         if not s.last_edit:
-            yield await sse("error", {"message": "Nothing to undo"})
+            yield sse("error", {"message": "Nothing to undo"})
             return
         for result in s.last_edit:
             coder.rollback(result)
-        yield await sse("undo", {"files": [r.file for r in s.last_edit]})
+        yield sse("undo", {"files": [r.file for r in s.last_edit]})
         s.last_edit = None
         return
 
     if command.kind == "diff":
         if not s.last_edit:
-            yield await sse("error", {"message": "No recent edit"})
+            yield sse("error", {"message": "No recent edit"})
             return
         diffs = [{"file": r.file, "diff": r.diff} for r in s.last_edit]
-        yield await sse("diff", {"diffs": diffs})
+        yield sse("diff", {"diffs": diffs})
         return
 
     if command.kind == "commit":
         msg = command.args or "minimal: apply edits"
         try:
-            result = subprocess.run(
-                ["git", "add", "-A"],
-                capture_output=True, text=True
-            )
+            subprocess.run(["git", "add", "-A"], capture_output=True, text=True)
             result = subprocess.run(
                 ["git", "commit", "-m", msg],
                 capture_output=True, text=True
             )
-            yield await sse("commit", {"output": result.stdout.strip()})
+            yield sse("commit", {"output": result.stdout.strip()})
         except Exception as e:
-            yield await sse("error", {"message": str(e)})
+            yield sse("error", {"message": str(e)})
         return
 
     if command.kind == "run":
@@ -231,11 +254,11 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                 capture_output=True, text=True, timeout=30
             )
             output = (result.stdout + result.stderr).strip()
-            yield await sse("run", {"output": output, "returncode": result.returncode})
+            yield sse("run", {"output": output, "returncode": result.returncode})
         except subprocess.TimeoutExpired:
-            yield await sse("error", {"message": "Command timed out (30s)"})
+            yield sse("error", {"message": "Command timed out (30s)"})
         except Exception as e:
-            yield await sse("error", {"message": str(e)})
+            yield sse("error", {"message": str(e)})
         return
 
     # --- LLM calls (prompt + edit) ---
@@ -247,41 +270,40 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         else ask_system_prompt(s.context.get_all())
     )
 
-    # build messages: context files + history + current input
     messages = s.context.to_messages() + s.get_messages()
     messages.append({"role": "user", "content": command.args or raw_input})
 
-    await s.write_message("user", command.args or raw_input)
-
-    # stream dengan heartbeat
     full_response = ""
-    tokens: list[str] = []
+    usage = None
 
-    ping_task = asyncio.create_task(_heartbeat())
+    # heartbeat task — kirim ping setiap 2 detik selama stream aktif
+    async def heartbeat():
+        while True:
+            await asyncio.sleep(2)
+            yield sse("ping", {})
+
+    heartbeat_task = asyncio.create_task(_run_heartbeat())
 
     try:
-        def on_token(token: str):
-            tokens.append(token)
-
-        usage = await llm.stream_chat(
+        async for token, u in llm.stream_chat(
             messages=messages,
             model=s.model,
-            on_token=on_token,
             system_prompt=system_prompt,
-        )
+        ):
+            if token is not None:
+                full_response += token
+                yield sse("token", {"content": token})
+            elif u is not None:
+                usage = u
 
-        # flush tokens
-        for token in tokens:
-            full_response += token
-            yield await sse("token", {"content": token})
-
-        # strip thinking sebelum simpan ke history
+        # simpan ke history — hanya sekali, setelah stream selesai
         clean_response = llm.clean_for_history(full_response)
         s.add_message("user", command.args or raw_input)
         s.add_message("assistant", clean_response)
+        await s.write_message("user", command.args or raw_input)
         await s.write_message("assistant", clean_response, {
-            "input_tokens": usage.input_tokens,
-            "output_tokens": usage.output_tokens,
+            "input_tokens": usage.input_tokens if usage else 0,
+            "output_tokens": usage.output_tokens if usage else 0,
         })
 
         # apply edit kalau mode edit
@@ -298,7 +320,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                     if verified:
                         s.context.reload(result.file)
                         await s.write_edit(result.file, result.diff, True)
-                        yield await sse("edit", {
+                        yield sse("edit", {
                             "file": result.file,
                             "diff": result.diff,
                             "success": True,
@@ -306,33 +328,32 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                     else:
                         coder.rollback(result)
                         await s.write_edit(result.file, result.diff, False)
-                        yield await sse("edit", {
+                        yield sse("edit", {
                             "file": result.file,
                             "diff": "",
                             "success": False,
                             "error": "Edit failed verification — rolled back",
                         })
                 else:
-                    yield await sse("error", {"message": result.error})
+                    yield sse("error", {"message": result.error})
 
             s.last_edit = [r for r in edit_results if r.success]
 
-        yield await sse("done", {
-            "input_tokens": usage.input_tokens,
-            "output_tokens": usage.output_tokens,
+        yield sse("done", {
+            "input_tokens": usage.input_tokens if usage else 0,
+            "output_tokens": usage.output_tokens if usage else 0,
         })
 
     except Exception as e:
-        yield await sse("error", {"message": str(e)})
+        yield sse("error", {"message": str(e)})
     finally:
-        ping_task.cancel()
+        heartbeat_task.cancel()
 
 
-async def _heartbeat():
-    """Dummy task — heartbeat dikirim via SSE ping di loop utama."""
+async def _run_heartbeat():
+    """Dummy task untuk di-cancel saat stream selesai."""
     await asyncio.sleep(999999)
 
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=4096, reload=False)
-
