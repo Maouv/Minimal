@@ -1,0 +1,186 @@
+# session.py — session lifecycle + JSONL persistence
+# Format JSONL seperti Claude Code. Atomic write. Recovery dari korup.
+
+import json
+import uuid
+import aiofiles
+from pathlib import Path
+from datetime import datetime, timezone
+from context import ContextManager
+import config
+
+
+class Session:
+    def __init__(self, session_id: str, model: str):
+        self.session_id = session_id
+        self.model = model
+        self.created_at = datetime.now(timezone.utc)
+        self.context = ContextManager()
+        self.messages: list[dict] = []   # chat history (tanpa thinking)
+        self.last_edit: dict | None = None  # untuk /undo
+        self._path = config.sessions_dir() / f"{session_id}.jsonl"
+
+    # --- Persistence ---
+
+    async def save_line(self, record: dict):
+        """Append satu line ke JSONL. Atomic via tmp file rename."""
+        tmp = self._path.with_suffix(".jsonl.tmp")
+        line = json.dumps(record, default=str) + "\n"
+
+        # append ke tmp dulu
+        async with aiofiles.open(tmp, "a", encoding="utf-8") as f:
+            await f.write(line)
+
+        # kalau main file belum ada, rename tmp → main
+        # kalau sudah ada, append langsung (tmp hanya untuk crash recovery)
+        if not self._path.exists():
+            tmp.rename(self._path)
+        else:
+            async with aiofiles.open(self._path, "a", encoding="utf-8") as f:
+                await f.write(line)
+            tmp.unlink(missing_ok=True)
+
+    async def write_meta(self):
+        await self.save_line({
+            "type": "meta",
+            "session_id": self.session_id,
+            "created_at": self.created_at.isoformat(),
+            "model": self.model,
+            "base_url": config.base_url(),
+        })
+
+    async def write_message(self, role: str, content: str, usage: dict | None = None):
+        record = {
+            "type": role,  # "user" atau "assistant"
+            "content": content,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        if usage:
+            record["usage"] = usage
+        await self.save_line(record)
+
+    async def write_edit(self, file: str, diff: str, success: bool):
+        await self.save_line({
+            "type": "edit",
+            "file": file,
+            "diff": diff,
+            "success": success,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+    async def write_command(self, command: str):
+        await self.save_line({
+            "type": "command",
+            "content": command,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+    # --- Message history ---
+
+    def add_message(self, role: str, content: str):
+        """Tambah ke in-memory history. Content harus sudah di-strip thinking."""
+        self.messages.append({"role": role, "content": content})
+
+    def get_messages(self) -> list[dict]:
+        return list(self.messages)
+
+    def clear_messages(self):
+        self.messages = []
+
+    # --- Load from disk ---
+
+    @classmethod
+    async def load(cls, session_id: str) -> "Session | None":
+        """Load session dari JSONL. Recovery kalau last line korup."""
+        path = config.sessions_dir() / f"{session_id}.jsonl"
+        if not path.exists():
+            return None
+
+        lines = await _read_jsonl_safe(path)
+        if not lines:
+            return None
+
+        # ambil meta dari line pertama
+        meta = lines[0] if lines[0].get("type") == "meta" else {}
+        model = meta.get("model", "")
+        session = cls(session_id=session_id, model=model)
+        session.created_at = datetime.fromisoformat(meta.get("created_at", datetime.now().isoformat()))
+        session._path = path
+
+        # rebuild message history
+        for line in lines[1:]:
+            t = line.get("type")
+            if t in ("user", "assistant"):
+                session.messages.append({
+                    "role": t,
+                    "content": line.get("content", ""),
+                })
+
+        return session
+
+
+# --- Session registry (in-memory, per backend process) ---
+
+_sessions: dict[str, Session] = {}
+
+
+async def create(model: str | None = None) -> Session:
+    session_id = str(uuid.uuid4())[:8]
+    m = model or config.model()
+    session = Session(session_id=session_id, model=m)
+    await session.write_meta()
+    _sessions[session_id] = session
+    return session
+
+
+def get(session_id: str) -> Session | None:
+    return _sessions.get(session_id)
+
+
+async def get_or_load(session_id: str) -> Session | None:
+    if session_id in _sessions:
+        return _sessions[session_id]
+    session = await Session.load(session_id)
+    if session:
+        _sessions[session_id] = session
+    return session
+
+
+def list_all() -> list[dict]:
+    """List semua sessions dari disk."""
+    sessions_dir = config.sessions_dir()
+    result = []
+    for path in sorted(sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True):
+        session_id = path.stem
+        try:
+            first_line = path.read_text().split("\n")[0]
+            meta = json.loads(first_line)
+            result.append({
+                "session_id": session_id,
+                "created_at": meta.get("created_at"),
+                "model": meta.get("model"),
+            })
+        except Exception:
+            continue
+    return result
+
+
+# --- Helpers ---
+
+async def _read_jsonl_safe(path: Path) -> list[dict]:
+    """Read JSONL, skip/truncate korup lines. Recovery otomatis."""
+    async with aiofiles.open(path, "r", encoding="utf-8") as f:
+        raw = await f.read()
+
+    lines = []
+    for line in raw.strip().split("\n"):
+        if not line.strip():
+            continue
+        try:
+            lines.append(json.loads(line))
+        except json.JSONDecodeError:
+            # last line korup — skip dan truncate
+            break
+
+    return lines
+
