@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>minimal</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; outline:none !important; }
+
+:root {
+  --bg:     #0d0d0d;
+  --bg2:    #141414;
+  --bg3:    #1a1a1a;
+  --border: #242424;
+  --green:  #a8ff60;
+  --gdim:   #4e7a22;
+  --orange: #fd971f;
+  --pink:   #f92672;
+  --purple: #ae81ff;
+  --cyan:   #66d9e8;
+  --blue:   #89d4f5;
+  --white:  #f8f8f2;
+  --gray:   #6b6b6b;
+  --gray2:  #3d3d3d;
+  --gray3:  #2a2a2a;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+html, body {
+  height:100%; overflow:hidden;
+  background:var(--bg); color:var(--white);
+  font-family:var(--mono); font-size:13px;
+  cursor:default;
+}
+* { cursor:default; }
+textarea { cursor:text; }
+
+#app { height:100vh; display:flex; flex-direction:column; }
+
+/* ── CHAT ─────────────────────────────────── */
+#chat { flex:1; overflow-y:auto; }
+#chat::-webkit-scrollbar { width:2px; }
+#chat::-webkit-scrollbar-thumb { background:var(--gray2); }
+
+/* ── EMPTY STATE ──────────────────────────── */
+#empty {
+  height:100%;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:28px; user-select:none;
+}
+.empty-top { display:flex; align-items:center; gap:20px; }
+
+.logo {
+  font-size:56px;
+  color:var(--blue);
+  line-height:1;
+  user-select:none;
+}
+
+.empty-brand {
+  font-size:26px; font-weight:300;
+  color:var(--white); letter-spacing:0.03em;
+}
+
+/* History box - like input bar */
+.history-box {
+  width:440px; max-width:88vw;
+  display:flex; flex-direction:column; gap:4px;
+}
+.history-item {
+  display:flex; align-items:flex-start; gap:8px;
+  padding:10px 14px 8px 14px;
+  background:var(--bg2);
+}
+.history-star {
+  color:var(--blue); font-size:14px;
+  line-height:1.6; flex-shrink:0;
+  user-select:none;
+}
+.history-text {
+  color:var(--white); font-size:13px;
+  line-height:1.6;
+}
+
+.input-box {
+  background:var(--bg2); padding:10px 14px 8px 14px;
+}
+.input-row { display:flex; align-items:flex-start; gap:8px; }
+
+.input-star {
+  color:var(--blue); font-size:14px;
+  line-height:1.6; flex-shrink:0;
+  user-select:none;
+}
+
+/* ── MESSAGES ─────────────────────────────── */
+.msg { padding:13px 20px; line-height:1.7; }
+.msg:last-child { }
+
+.msg-role {
+  font-size:10px; font-weight:500;
+  letter-spacing:0.08em; text-transform:uppercase;
+  margin-bottom:6px;
+  display:flex; align-items:center; gap:8px;
+}
+.role-you { color:var(--orange); }
+.role-ai  { color:var(--green); }
+.msg-ts   { color:var(--gray2); font-weight:400; margin-left:auto; }
+.msg-body { color:var(--white); font-size:13px; }
+
+/* Thinking — no spin, just collapsible text */
+.thinking-block { margin-bottom:10px; }
+.thinking-label {
+  font-size:10px; color:var(--gdim);
+  letter-spacing:0.06em; text-transform:uppercase;
+  cursor:pointer; margin-bottom:4px;
+  display:flex; align-items:center; gap:5px;
+}
+.thinking-label::before { content:'▸'; font-size:8px; transition:transform .15s; }
+.thinking-label.open::before { transform:rotate(90deg); }
+.thinking-text {
+  font-style:italic; color:var(--gray);
+  font-size:12px; line-height:1.6;
+  border-left:2px solid var(--gdim);
+  padding-left:10px; display:none;
+}
+.thinking-text.show { display:block; }
+
+code {
+  background:var(--bg3); padding:1px 5px;
+  font-size:11.5px; color:var(--cyan); font-family:var(--mono);
+}
+.code-block {
+  background:var(--bg3); padding:10px 14px;
+  margin:8px 0; font-size:12px; line-height:1.6; overflow-x:auto;
+}
+.kw { color:var(--pink); }
+.fn { color:var(--green); }
+.nb { color:var(--purple); }
+.cm { color:var(--gray); font-style:italic; }
+
+.diff-block { overflow:hidden; margin:8px 0; font-size:12px; }
+.diff-top   { background:var(--bg2); padding:4px 12px; font-size:10px; color:var(--gray); display:flex; gap:10px; }
+.dl { padding:1px 12px; line-height:1.7; }
+.da { background:rgba(168,255,96,.07); color:var(--green); }
+.da::before { content:'+  '; color:var(--gdim); }
+.dr { background:rgba(249,38,114,.07); color:var(--pink); }
+.dr::before { content:'-  '; }
+.dc { color:var(--gray); }
+.dc::before { content:'   '; }
+
+/* ── SLASH MENU ───────────────────────────── */
+#slash-menu {
+  display:none; margin:0 12px;
+  background:var(--bg2); overflow:hidden;
+  font-size:12px; flex-shrink:0;
+}
+.slash-item { display:flex; align-items:center; gap:12px; padding:6px 14px; }
+.slash-item:hover, .slash-item.sel { background:var(--bg3); }
+.si-cmd  { color:var(--orange); width:130px; flex-shrink:0; }
+.si-desc { color:var(--gray); font-size:11px; }
+
+/* ── INPUT ZONE ───────────────────────────── */
+#input-zone { padding:6px 12px; flex-shrink:0; }
+
+textarea#inputTA {
+  flex:1; background:transparent;
+  border:none; outline:none; box-shadow:none;
+  color:var(--white); font-family:var(--mono);
+  font-size:13px; line-height:1.6;
+  resize:none; min-height:22px; max-height:140px;
+  overflow-y:auto; caret-color:var(--green);
+}
+textarea#inputTA:focus { outline:none; box-shadow:none; border:none; }
+textarea#inputTA::placeholder { color:var(--gray2); }
+textarea#inputTA::-webkit-scrollbar { width:2px; }
+
+.input-meta {
+  display:flex; align-items:center;
+  font-size:11px; color:var(--gray);
+  margin-top:6px;
+}
+.meta-sep  { margin:0 5px; color:var(--gray2); }
+#modeLabel { color:var(--cyan); }
+
+/* ── CONTEXT BAR ──────────────────────────── */
+#ctx-bar {
+  display:none; padding:6px 12px;
+  align-items:center; gap:8px;
+  font-size:11px; color:var(--gray2);
+  flex-shrink:0; flex-wrap:wrap;
+  background:var(--bg);
+}
+.ctx-file   { display:flex; align-items:center; gap:4px; }
+.ctx-fname  { color:var(--gray); }
+.ctx-action { color:var(--gray2); font-size:10px; }
+.ctx-dot    { color:var(--gray3); }
+.ctx-tok    { margin-left:auto; color:var(--gray2); font-size:10px; }
+
+/* ── STATUS BAR ───────────────────────────── */
+#status-bar {
+  padding:3px 14px 7px 14px;
+  font-size:10px; color:var(--gray3);
+  display:flex; align-items:center; gap:5px;
+  flex-shrink:0; user-select:none;
+}
+#status-bar .sep   { color:var(--gray3); }
+#status-bar .brand { margin-left:auto; color:var(--gray3); }
+
+/* ── DEMO ─────────────────────────────────── */
+#demo {
+  position:fixed; top:8px; right:8px;
+  display:flex; flex-direction:column; gap:3px; z-index:999;
+}
+#demo button {
+  background:var(--bg2);
+  color:var(--gray); font-family:var(--mono); font-size:10px;
+  padding:3px 10px; cursor:pointer; text-align:left;
+}
+#demo button:hover { color:var(--green); border-color:var(--gdim); }
+</style>
+</head>
+<body>
+
+<div id="demo">
+  <button onclick="showEmpty()">empty state</button>
+  <button onclick="showThinking()">thinking</button>
+  <button onclick="showChat()">chat</button>
+  <button onclick="showDiff()">diff</button>
+  <button onclick="showSlash()">slash menu</button>
+</div>
+
+<div id="app">
+  <div id="chat">
+
+    <!-- EMPTY STATE -->
+    <div id="empty">
+      <div class="empty-top">
+        <div class="logo" id="mainLogo">✦</div>
+        <div class="empty-brand">minimal</div>
+      </div>
+
+      <!-- Chat history preview (like input bar) -->
+      <div class="history-box">
+        <div class="history-item">
+          <div class="history-star">✦</div>
+          <div class="history-text">gimana cara fix null pointer di context.py line 42?</div>
+        </div>
+        <div class="history-item">
+          <div class="history-star">✦</div>
+          <div class="history-text">/edit-block fix the null pointer in context.py</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MESSAGES -->
+    <!-- user history prompt or chat -->
+    <div id="msgs" style="display:none">
+      <div class="msg">
+        <div class="input-box">
+          <div class="input-row">
+            <div class="input-star">✦</div>
+            <div class="msg-body">gimana cara fix null pointer di <code>context.py</code> line 42?</div>
+          </div>
+        </div>
+      </div>
+      
+    <!-- ai answer -->
+      <div class="msg">
+        <div class="msg-body">
+          <div class="thinking-block">
+            <div class="thinking-label open" onclick="toggleThink(this)">thinking</div>
+            <div class="thinking-text show">
+              context.reload() pakai sync read yang return None kalau file belum ada di disk, lalu caller akses .content tanpa guard — inkonsistensi yang dicatat di PROGRESS.md...
+            </div>
+          </div>
+          Null pointer terjadi karena <code>reload()</code> return <code>None</code> kalau file belum ada, tapi caller langsung akses <code>.content</code>.<br><br>
+          <div class="code-block">
+            <span class="kw">def</span> <span class="fn">reload</span>(self, path: str):<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;content = self._read_file(path)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> content <span class="kw">is</span> <span class="nb">None</span>: <span class="kw">return</span>  <span class="cm"># guard</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;self.files[path] = content
+          </div>
+        </div>
+      </div>
+
+      <div class="msg">
+        <div class="input-box">
+          <div class="input-row">
+            <div class="input-star">✦</div>
+            <div class="msg-body" style="color: #444;">/edit-block fix the null pointer in context.py</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg" id="diffMsg" style="display:none">
+        <div class="msg-body">
+          <div class="diff-block" style="border: 1px solid #222; border-radius: 0px; overflow: hidden; margin: 10px 0;">
+            <div class="diff-top"><span style="color:var(--cyan)">context.py</span>
+            <span style="margin-left: 10px;">+2 -0</span>
+            <span style="margin-left: auto; color:  var(--gray);">Applied to context.py</span>
+            
+            </div>
+            <div class="dl dc">def reload(self, path: str):</div>
+            <div class="dl dc">&nbsp;&nbsp;&nbsp;&nbsp;content = self._read_file(path)</div>
+            <div class="dl da">&nbsp;&nbsp;&nbsp;&nbsp;if content is None: return</div>
+            <div class="dl da">&nbsp;&nbsp;&nbsp;&nbsp;# guard added</div>
+            <div class="dl dc">&nbsp;&nbsp;&nbsp;&nbsp;self.files[path] = content</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end chat -->
+
+  <!-- pSLASH MENU -->
+  <div id="slash-menu">
+    <div class="slash-item sel"><span class="si-cmd">/edit-block</span><span class="si-desc">edit dengan SEARCH/REPLACE</span></div>
+    <div class="slash-item"><span class="si-cmd">/edit-udiff</span><span class="si-desc">edit dengan unified diff</span></div>
+    <div class="slash-item"><span class="si-cmd">/edit-whole</span><span class="si-desc">rewrite seluruh file</span></div>
+    <div class="slash-item"><span class="si-cmd">/add</span><span class="si-desc">tambah file ke context</span></div>
+    <div class="slash-item"><span class="si-cmd">/drop</span><span class="si-desc">hapus file dari context</span></div>
+  </div>
+
+  <!-- CONTEXT BAR (above input) -->
+  <div id="ctx-bar">
+    <div class="ctx-file">
+      <span class="ctx-fname">src/context.py</span>
+      <span class="ctx-action">applied</span>
+    </div>
+    <span class="ctx-dot">·</span>
+    <div class="ctx-file">
+      <span class="ctx-fname">src/llm.py</span>
+    </div>
+    <span class="ctx-tok">3,080 tok</span>
+  </div>
+
+  <!-- INPUT -->
+  <div id="input-zone">
+    <div class="input-box">
+      <div class="input-row">
+        <div class="input-star">✦</div>
+        <textarea id="inputTA" rows="1"
+          placeholder='Ask anything... "What is the tech stack of this project?"'
+          oninput="onInput(this)" onkeydown="onKey(event)"
+        ></textarea>
+      </div>
+      <div class="input-meta">
+        <span id="modeLabel">Ask</span>
+        <span class="meta-sep">·</span>
+        <span>glm-5</span>
+        <span class="meta-sep">·</span>
+        <span>minimal</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div id="status-bar">
+    <span id="sbMode">Ask</span>
+    <span class="sep">·</span>
+    <span>glm-5</span>
+    <span class="brand">minimal</span>
+  </div>
+
+</div>
+
+<script>
+function onInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  const val = el.value;
+  const menu = document.getElementById('slash-menu');
+  if (val.startsWith('/') && val.length > 0) {
+    const query = val.toLowerCase();
+    let any = false;
+    document.querySelectorAll('.slash-item').forEach(item => {
+      const cmd = item.querySelector('.si-cmd').textContent.toLowerCase();
+      const show = cmd.startsWith(query);
+      item.style.display = show ? 'flex' : 'none';
+      if (show) any = true;
+    });
+    menu.style.display = any ? 'block' : 'none';
+  } else {
+    menu.style.display = 'none';
+    document.querySelectorAll('.slash-item').forEach(i => i.style.display = 'flex');
+  }
+}
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) e.preventDefault();
+  if (e.key === 'Escape') document.getElementById('slash-menu').style.display = 'none';
+}
+function toggleThink(el) {
+  el.classList.toggle('open');
+  el.nextElementSibling.classList.toggle('show');
+}
+function showEmpty() {
+  document.getElementById('empty').style.display = 'flex';
+  document.getElementById('msgs').style.display  = 'none';
+  document.getElementById('ctx-bar').style.display = 'none';
+  document.getElementById('modeLabel').textContent = 'Ask';
+  document.getElementById('modeLabel').style.color = '';
+  document.getElementById('slash-menu').style.display = 'none';
+}
+function showThinking() {
+  document.getElementById('empty').style.display = 'flex';
+  document.getElementById('msgs').style.display  = 'none';
+  document.getElementById('ctx-bar').style.display = 'flex';
+  document.getElementById('modeLabel').textContent = 'Thinking...';
+  document.getElementById('modeLabel').style.color = 'var(--green)';
+}
+function showChat() {
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('msgs').style.display  = 'block';
+  document.getElementById('diffMsg').style.display = 'none';
+  document.getElementById('ctx-bar').style.display = 'flex';
+  document.getElementById('modeLabel').textContent = 'Ask';
+  document.getElementById('modeLabel').style.color = '';
+}
+function showDiff() {
+  showChat();
+  document.getElementById('diffMsg').style.display = 'block';
+}
+function showSlash() {
+  showChat();
+  const ta = document.getElementById('inputTA');
+  ta.value = '/edit';
+  document.getElementById('slash-menu').style.display = 'block';
+  ta.focus();
+}
+</script>
+</body>
+</html>
