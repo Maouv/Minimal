@@ -1,3 +1,6 @@
+# vendored from aider/coders/search_replace.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
+# stripped: aider.dump, aider.utils, tqdm, git_cherry_pick funcs, proc/main
+
 #!/usr/bin/env python
 
 import sys
@@ -9,10 +12,7 @@ except ImportError:
     git = None
 
 from diff_match_patch import diff_match_patch
-from tqdm import tqdm
 
-from aider.dump import dump
-from aider.utils import GitTemporaryDirectory
 
 
 class RelativeIndenter:
@@ -206,9 +206,6 @@ def map_patches(texts, patches, debug):
         html = dmp.diff_prettyHtml(diff_s_o)
         Path("tmp.html").write_text(html)
 
-        dump(len(search_text))
-        dump(len(original_text))
-
     for patch in patches:
         start1 = patch.start1
         start2 = patch.start2
@@ -315,8 +312,6 @@ def dmp_apply(texts, remap=True):
         print(patches_text)
 
         # print(new_text)
-        dump(success)
-        dump(all_success)
 
         # print(new_text)
 
@@ -391,12 +386,7 @@ def dmp_lines_apply(texts):
     all_success = False not in success
 
     if debug:
-        # print(new_text)
-        dump(success)
-        dump(all_success)
-
-        # print(new_text)
-
+        pass
     if not all_success:
         return
 
@@ -443,123 +433,6 @@ def search_and_replace(texts):
     new_text = original_text.replace(search_text, replace_text)
 
     return new_text
-
-
-def git_cherry_pick_osr_onto_o(texts):
-    search_text, replace_text, original_text = texts
-
-    with GitTemporaryDirectory() as dname:
-        repo = git.Repo(dname)
-
-        fname = Path(dname) / "file.txt"
-
-        # Make O->S->R
-        fname.write_text(original_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "original")
-        original_hash = repo.head.commit.hexsha
-
-        fname.write_text(search_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "search")
-
-        fname.write_text(replace_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "replace")
-        replace_hash = repo.head.commit.hexsha
-
-        # go back to O
-        repo.git.checkout(original_hash)
-
-        # cherry pick R onto original
-        try:
-            repo.git.cherry_pick(replace_hash, "--minimal")
-        except (git.exc.ODBError, git.exc.GitError):
-            # merge conflicts!
-            return
-
-        new_text = fname.read_text()
-        return new_text
-
-
-def git_cherry_pick_sr_onto_so(texts):
-    search_text, replace_text, original_text = texts
-
-    with GitTemporaryDirectory() as dname:
-        repo = git.Repo(dname)
-
-        fname = Path(dname) / "file.txt"
-
-        fname.write_text(search_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "search")
-        search_hash = repo.head.commit.hexsha
-
-        # make search->replace
-        fname.write_text(replace_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "replace")
-        replace_hash = repo.head.commit.hexsha
-
-        # go back to search,
-        repo.git.checkout(search_hash)
-
-        # make search->original
-        fname.write_text(original_text)
-        repo.git.add(str(fname))
-        repo.git.commit("-m", "original")
-
-        # cherry pick replace onto original
-        try:
-            repo.git.cherry_pick(replace_hash, "--minimal")
-        except (git.exc.ODBError, git.exc.GitError):
-            # merge conflicts!
-            return
-
-        new_text = fname.read_text()
-
-        return new_text
-
-
-class SearchTextNotUnique(ValueError):
-    pass
-
-
-all_preprocs = [
-    # (strip_blank_lines, relative_indent, reverse_lines)
-    (False, False, False),
-    (True, False, False),
-    (False, True, False),
-    (True, True, False),
-    # (False, False, True),
-    # (True, False, True),
-    # (False, True, True),
-    # (True, True, True),
-]
-
-always_relative_indent = [
-    (False, True, False),
-    (True, True, False),
-    # (False, True, True),
-    # (True, True, True),
-]
-
-editblock_strategies = [
-    (search_and_replace, all_preprocs),
-    (git_cherry_pick_osr_onto_o, all_preprocs),
-    (dmp_lines_apply, all_preprocs),
-]
-
-never_relative = [
-    (False, False),
-    (True, False),
-]
-
-udiff_strategies = [
-    (search_and_replace, all_preprocs),
-    (git_cherry_pick_osr_onto_o, all_preprocs),
-    (dmp_lines_apply, all_preprocs),
-]
 
 
 def flexible_search_and_replace(texts, strategies):
@@ -619,139 +492,22 @@ def read_text(fname):
     return text
 
 
-def proc(dname):
-    dname = Path(dname)
 
-    try:
-        search_text = read_text(dname / "search")
-        replace_text = read_text(dname / "replace")
-        original_text = read_text(dname / "original")
-    except FileNotFoundError:
-        return
-
-    ####
-
-    texts = search_text, replace_text, original_text
-
-    strategies = [
-        # (search_and_replace, all_preprocs),
-        # (git_cherry_pick_osr_onto_o, all_preprocs),
-        # (git_cherry_pick_sr_onto_so, all_preprocs),
-        # (dmp_apply, all_preprocs),
-        (dmp_lines_apply, all_preprocs),
-    ]
-
-    short_names = dict(
-        search_and_replace="sr",
-        git_cherry_pick_osr_onto_o="cp_o",
-        git_cherry_pick_sr_onto_so="cp_so",
-        dmp_apply="dmp",
-        dmp_lines_apply="dmpl",
-    )
-
-    patched = dict()
-    for strategy, preprocs in strategies:
-        for preproc in preprocs:
-            method = strategy.__name__
-            method = short_names[method]
-
-            strip_blank, rel_indent, rev_lines = preproc
-            if strip_blank or rel_indent:
-                method += "_"
-            if strip_blank:
-                method += "s"
-            if rel_indent:
-                method += "i"
-            if rev_lines:
-                method += "r"
-
-            res = try_strategy(texts, strategy, preproc)
-            patched[method] = res
-
-    results = []
-    for method, res in patched.items():
-        out_fname = dname / f"original.{method}"
-        if out_fname.exists():
-            out_fname.unlink()
-
-        if res:
-            out_fname.write_text(res)
-
-            correct = (dname / "correct").read_text()
-            if res == correct:
-                res = "pass"
-            else:
-                res = "WRONG"
-        else:
-            res = "fail"
-
-        results.append((method, res))
-
-    return results
+all_preprocs = [
+    (False, False, False),
+    (True, False, False),
+    (False, True, False),
+    (True, True, False),
+]
 
 
-def colorize_result(result):
-    colors = {
-        "pass": "\033[102;30mpass\033[0m",  # Green background, black text
-        "WRONG": "\033[101;30mWRONG\033[0m",  # Red background, black text
-        "fail": "\033[103;30mfail\033[0m",  # Yellow background, black text
-    }
-    return colors.get(result, result)  # Default to original result if not found
+# strategy lists — git_cherry_pick removed (not vendored)
+editblock_strategies = [
+    (search_and_replace, all_preprocs),
+    (dmp_lines_apply, all_preprocs),
+]
 
-
-def main(dnames):
-    all_results = []
-    for dname in tqdm(dnames):
-        dname = Path(dname)
-        results = proc(dname)
-        for method, res in results:
-            all_results.append((dname, method, res))
-            # print(dname, method, colorize_result(res))
-
-    # Create a 2D table with directories along the right and methods along the top
-    # Collect all unique methods and directories
-    methods = []
-    for _, method, _ in all_results:
-        if method not in methods:
-            methods.append(method)
-
-    directories = dnames
-
-    # Sort directories by decreasing number of 'pass' results
-    pass_counts = {
-        dname: sum(
-            res == "pass" for dname_result, _, res in all_results if str(dname) == str(dname_result)
-        )
-        for dname in directories
-    }
-    directories.sort(key=lambda dname: pass_counts[dname], reverse=True)
-
-    # Create a results matrix
-    results_matrix = {dname: {method: "" for method in methods} for dname in directories}
-
-    # Populate the results matrix
-    for dname, method, res in all_results:
-        results_matrix[str(dname)][method] = res
-
-    # Print the 2D table
-    # Print the header
-    print("{:<20}".format("Directory"), end="")
-    for method in methods:
-        print("{:<9}".format(method), end="")
-    print()
-
-    # Print the rows with colorized results
-    for dname in directories:
-        print("{:<20}".format(Path(dname).name), end="")
-        for method in methods:
-            res = results_matrix[dname][method]
-            colorized_res = colorize_result(res)
-            res_l = 9 + len(colorized_res) - len(res)
-            fmt = "{:<" + str(res_l) + "}"
-            print(fmt.format(colorized_res), end="")
-        print()
-
-
-if __name__ == "__main__":
-    status = main(sys.argv[1:])
-    sys.exit(status)
+udiff_strategies = [
+    (search_and_replace, all_preprocs),
+    (dmp_lines_apply, all_preprocs),
+]

@@ -1,17 +1,13 @@
+# vendored from aider/coders/udiff_coder.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
+# stripped: UnifiedDiffCoder class, base_coder, aider imports
+
 import difflib
 from itertools import groupby
 from pathlib import Path
 
-from ..dump import dump  # noqa: F401
-from .base_coder import Coder
-from .search_replace import (
-    SearchTextNotUnique,
-    all_preprocs,
-    diff_lines,
-    flexible_search_and_replace,
-    search_and_replace,
-)
-from .udiff_prompts import UnifiedDiffPrompts
+from .search_replace import flexible_search_and_replace, udiff_strategies
+
+
 
 no_match_error = """UnifiedDiffNoMatch: hunk failed to apply!
 
@@ -38,84 +34,7 @@ The diff needs to apply to a unique set of lines in {path}!
 {original}```
 """
 
-other_hunks_applied = (
-    "Note: some hunks did apply successfully. See the updated source code shown above.\n\n"
-)
-
-
-class UnifiedDiffCoder(Coder):
-    """A coder that uses unified diff format for code modifications."""
-
-    edit_format = "udiff"
-    gpt_prompts = UnifiedDiffPrompts()
-
-    def get_edits(self):
-        content = self.partial_response_content
-
-        # might raise ValueError for malformed ORIG/UPD blocks
-        raw_edits = list(find_diffs(content))
-
-        last_path = None
-        edits = []
-        for path, hunk in raw_edits:
-            if path:
-                last_path = path
-            else:
-                path = last_path
-            edits.append((path, hunk))
-
-        return edits
-
-    def apply_edits(self, edits):
-        seen = set()
-        uniq = []
-        for path, hunk in edits:
-            hunk = normalize_hunk(hunk)
-            if not hunk:
-                continue
-
-            this = [path + "\n"] + hunk
-            this = "".join(this)
-
-            if this in seen:
-                continue
-            seen.add(this)
-
-            uniq.append((path, hunk))
-
-        errors = []
-        for path, hunk in uniq:
-            full_path = self.abs_root_path(path)
-            content = self.io.read_text(full_path)
-
-            original, _ = hunk_to_before_after(hunk)
-
-            try:
-                content = do_replace(full_path, content, hunk)
-            except SearchTextNotUnique:
-                errors.append(
-                    not_unique_error.format(
-                        path=path, original=original, num_lines=len(original.splitlines())
-                    )
-                )
-                continue
-
-            if not content:
-                errors.append(
-                    no_match_error.format(
-                        path=path, original=original, num_lines=len(original.splitlines())
-                    )
-                )
-                continue
-
-            # SUCCESS!
-            self.io.write_text(full_path, content)
-
-        if errors:
-            errors = "\n\n".join(errors)
-            if len(errors) < len(uniq):
-                errors += other_hunks_applied
-            raise ValueError(errors)
+other_hunks_applied = "Note: some hunks did apply successfully. See the updated source code shown above.\n\n"
 
 
 def do_replace(fname, content, hunk):

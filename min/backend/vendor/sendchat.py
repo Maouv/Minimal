@@ -1,5 +1,8 @@
-from aider.dump import dump  # noqa: F401
-from aider.utils import format_messages
+# vendored from aider/sendchat.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
+# stripped: aider.dump, aider.utils.format_messages
+
+def __format_messages(messages):
+    return '\n'.join(f"{m['role']}: {m['content']}" for m in messages)
 
 
 def sanity_check_messages(messages):
@@ -16,7 +19,7 @@ def sanity_check_messages(messages):
             continue
 
         if last_role and role == last_role:
-            turns = format_messages(messages)
+            turns = _format_messages(messages)
             raise ValueError("Messages don't properly alternate user/assistant:\n\n" + turns)
 
         last_role = role
