@@ -1,0 +1,3 @@
+baris lama
+baris tetap
+baris yang dihapus
