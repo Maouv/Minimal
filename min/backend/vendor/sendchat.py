@@ -5,6 +5,13 @@ def __format_messages(messages):
     return '\n'.join(f"{m['role']}: {m['content']}" for m in messages)
 
 
+# vendored from aider/sendchat.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
+# stripped: aider.dump, aider.utils.format_messages
+
+def ___format_messages(messages):
+    return '\n'.join(f"{m['role']}: {m['content']}" for m in messages)
+
+
 def sanity_check_messages(messages):
     """Check if messages alternate between user and assistant roles.
     System messages can be interspersed anywhere.
@@ -19,7 +26,7 @@ def sanity_check_messages(messages):
             continue
 
         if last_role and role == last_role:
-            turns = _format_messages(messages)
+            turns = __format_messages(messages)
             raise ValueError("Messages don't properly alternate user/assistant:\n\n" + turns)
 
         last_role = role

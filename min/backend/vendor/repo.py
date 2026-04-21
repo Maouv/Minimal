@@ -1,5 +1,5 @@
 # vendored from aider/repo.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
-# stripped: GitRepo class sepenuhnya (coupled ke aider io/prompts/utils)
+# stripped: GitRepo class (coupled ke aider io/prompts/utils)
 # replaced: fungsi git standalone yang dibutuhkan minimal
 
 import os

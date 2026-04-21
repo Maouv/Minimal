@@ -1,9 +1,11 @@
 # vendored from aider/coders/search_replace.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
+# stripped: aider imports, tqdm, git_cherry_pick funcs, proc/main
+
+# vendored from aider/coders/search_replace.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
 # stripped: aider.dump, aider.utils, tqdm, git_cherry_pick funcs, proc/main
 
 #!/usr/bin/env python
 
-import sys
 from pathlib import Path
 
 try:
@@ -502,6 +504,23 @@ all_preprocs = [
 
 
 # strategy lists — git_cherry_pick removed (not vendored)
+editblock_strategies = [
+    (search_and_replace, all_preprocs),
+    (dmp_lines_apply, all_preprocs),
+]
+
+udiff_strategies = [
+    (search_and_replace, all_preprocs),
+    (dmp_lines_apply, all_preprocs),
+]
+
+all_preprocs = [
+    (False, False, False),
+    (True, False, False),
+    (False, True, False),
+    (True, True, False),
+]
+
 editblock_strategies = [
     (search_and_replace, all_preprocs),
     (dmp_lines_apply, all_preprocs),
