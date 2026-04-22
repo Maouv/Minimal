@@ -23,7 +23,7 @@ const SLASH_COMMANDS = [
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export function createInputBox(renderer: CliRenderer): BoxRenderable {
-  const ctx = (renderer as any).renderContext
+  const ctx = renderer as any as import("@opentui/core").CliRenderer
 
   // Outer: input area at bottom
   const wrapper = new BoxRenderable(ctx, {

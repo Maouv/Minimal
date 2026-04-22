@@ -14,7 +14,7 @@ const MODE_COLOR: Record<string, string> = {
 }
 
 export function createStatusBar(renderer: CliRenderer): BoxRenderable {
-  const ctx = (renderer as any).renderContext
+  const ctx = renderer as any as import("@opentui/core").CliRenderer
 
   const bar = new BoxRenderable(ctx, {
     width: "100%",

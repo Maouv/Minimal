@@ -18,7 +18,7 @@ interface MessageRow {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export function createChatView(renderer: CliRenderer): ScrollBoxRenderable {
-  const ctx = (renderer as any).renderContext
+  const ctx = renderer as any as import("@opentui/core").CliRenderer
 
   const scroll = new ScrollBoxRenderable(ctx, {
     flexGrow: 1,
