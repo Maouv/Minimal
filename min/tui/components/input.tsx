@@ -1,20 +1,23 @@
-// input.tsx — prompt input + slash autocomplete + file completion
+// input.tsx — input box sesuai HTML ref
+// Layout: ✦ <textarea>
+//         Ask · glm-5 · minimal   (input-meta)
+// Slash menu muncul di atas
 import { createSignal, For, Show } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import type { InputRenderable } from "@opentui/core"
 import { state, setState, pushMessage } from "../state.ts"
 import { sendPrompt, abortSession, listProjectFiles } from "../client.ts"
 import { consumeStream } from "../stream.ts"
-import { MK, MODE_COLOR } from "../theme.ts"
+import { C, MODE_COLOR } from "../theme.ts"
 
 const SLASH_COMMANDS = [
-  { cmd: "/add",        desc: "add file(s) to context" },
-  { cmd: "/add -r",     desc: "add file(s) as read-only" },
-  { cmd: "/drop",       desc: "remove file from context" },
-  { cmd: "/edit-block", desc: "SEARCH/REPLACE mode [prompt]" },
-  { cmd: "/edit-udiff", desc: "unified diff mode [prompt]" },
-  { cmd: "/edit-whole", desc: "whole-file mode [prompt]" },
-  { cmd: "/ask",        desc: "return to ask mode" },
+  { cmd: "/add",        desc: "tambah file ke context" },
+  { cmd: "/add -r",     desc: "tambah file sebagai read-only" },
+  { cmd: "/drop",       desc: "hapus file dari context" },
+  { cmd: "/edit-block", desc: "edit dengan SEARCH/REPLACE" },
+  { cmd: "/edit-udiff", desc: "edit dengan unified diff" },
+  { cmd: "/edit-whole", desc: "rewrite seluruh file" },
+  { cmd: "/ask",        desc: "kembali ke ask mode" },
   { cmd: "/undo",       desc: "undo last edit" },
   { cmd: "/diff",       desc: "show last diff" },
   { cmd: "/clear",      desc: "clear messages" },
@@ -27,7 +30,7 @@ const SLASH_COMMANDS = [
 ]
 
 type AcMode = "command" | "file"
-interface AcItem { label: string; value: string }
+interface AcItem { label: string; desc: string; value: string }
 
 export function InputBox() {
   const [acItems, setAcItems] = createSignal<AcItem[]>([])
@@ -44,33 +47,29 @@ export function InputBox() {
       const res = await listProjectFiles()
       fileCache = res.files
       fileCacheLoaded = true
-    } catch {
-      fileCache = []
-    }
+    } catch { fileCache = [] }
   }
 
   function completeSelected() {
     const items = acItems()
-    const selected = items[acSelected()]
-    if (!selected || !inputRef) return
-    inputRef.value = selected.value
+    const sel = items[acSelected()]
+    if (!sel || !inputRef) return
+    inputRef.value = sel.value
     setAcItems([])
-    handleInput(selected.value)
+    handleInput(sel.value)
   }
 
   useKeyboard((key) => {
-    const items = acItems()
-    if (items.length === 0) return
-    if (key.name === "up") { setAcSelected(s => Math.max(0, s - 1)); return }
-    if (key.name === "down") { setAcSelected(s => Math.min(items.length - 1, s + 1)); return }
-    if (key.name === "tab") { completeSelected(); return }
+    if (acItems().length === 0) return
+    if (key.name === "up")   { setAcSelected(s => Math.max(0, s - 1)); return }
+    if (key.name === "down") { setAcSelected(s => Math.min(acItems().length - 1, s + 1)); return }
+    if (key.name === "tab")  { completeSelected(); return }
     if (key.name === "return" && acMode() === "file") { completeSelected(); return }
     if (key.name === "escape") { setAcItems([]); return }
   })
 
   async function handleSubmit(value: string) {
     if (acItems().length > 0) { completeSelected(); return }
-
     const raw = value.trim()
     if (!raw) return
 
@@ -79,7 +78,6 @@ export function InputBox() {
       setState("streaming", false)
       return
     }
-
     if (!state.sessionId) { setState("error", "no active session"); return }
 
     if (inputRef) inputRef.value = ""
@@ -98,26 +96,27 @@ export function InputBox() {
   }
 
   async function handleInput(value: string) {
-    // Slash command autocomplete
+    // Slash command menu
     if (value.startsWith("/") && !value.includes(" ")) {
       const matches = SLASH_COMMANDS
         .filter(c => c.cmd.startsWith(value))
-        .map(c => ({ label: c.cmd, value: c.cmd + " " }))
+        .map(c => ({ label: c.cmd, desc: c.desc, value: c.cmd + " " }))
       setAcMode("command")
       setAcItems(matches)
       setAcSelected(0)
       return
     }
 
-    // /drop: dari contextFiles
+    // /drop — dari contextFiles
     if (value.startsWith("/drop ")) {
-      const pattern = value.slice("/drop ".length).toLowerCase()
+      const pattern = value.slice(6).toLowerCase()
       const matches = state.contextFiles
         .filter(f => pattern === "" || f.path.toLowerCase().includes(pattern))
-        .slice(0, 15)
+        .slice(0, 12)
         .map(f => {
           const parts = f.path.replace(/\\/g, "/").split("/")
-          return { label: parts.slice(-2).join("/"), value: "/drop " + f.path }
+          const short = parts.slice(-2).join("/")
+          return { label: short, desc: f.path, value: "/drop " + f.path }
         })
       setAcMode("file")
       setAcItems(matches)
@@ -125,7 +124,7 @@ export function InputBox() {
       return
     }
 
-    // /add, /add -r: dari filesystem CWD
+    // /add — dari filesystem CWD, batch support
     const addCmd = ["/add -r ", "/add "].find(p => value.startsWith(p))
     if (addCmd) {
       await loadFileCache()
@@ -135,10 +134,11 @@ export function InputBox() {
       const prefix = value.slice(0, value.length - pattern.length)
       const matches = fileCache
         .filter(f => pattern === "" || f.toLowerCase().includes(pattern))
-        .slice(0, 15)
+        .slice(0, 12)
         .map(f => {
           const parts = f.replace(/\\/g, "/").split("/")
-          return { label: parts.slice(-2).join("/"), value: prefix + f + " " }
+          const short = parts.slice(-2).join("/")
+          return { label: short, desc: f, value: prefix + f + " " }
         })
       setAcMode("file")
       setAcItems(matches)
@@ -149,25 +149,25 @@ export function InputBox() {
     setAcItems([])
   }
 
-  const modeColor = () => MODE_COLOR[state.mode] ?? MK.white
-  const glyphColor = () => state.streaming ? MK.orange : modeColor()
-  const glyphChar  = () => state.streaming ? "⊙" : "❯"
+  const modeLabel = () => {
+    if (state.streaming) return "Thinking..."
+    const m: Record<string, string> = {
+      "ask": "Ask", "edit-block": "Edit", "edit-udiff": "Edit", "edit-whole": "Edit",
+    }
+    return m[state.mode] ?? state.mode
+  }
+  const modeColor = () => state.streaming ? C.green : (MODE_COLOR[state.mode] ?? C.cyan)
 
   return (
-    <box
-      width="100%"
-      flexDirection="column"
-      flexShrink={0}
-      backgroundColor={MK.bg}
-    >
-      {/* Autocomplete overlay */}
+    <box width="100%" flexDirection="column" flexShrink={0} backgroundColor={C.bg}>
+
+      {/* Slash menu — muncul di atas input */}
       <Show when={acItems().length > 0}>
         <box
           width="100%"
           flexDirection="column"
-          backgroundColor={MK.bg2}
-          borderTop
-          borderColor={MK.border}
+          backgroundColor={C.bg2}
+          flexShrink={0}
         >
           <For each={acItems()}>
             {(item, i) => (
@@ -177,44 +177,56 @@ export function InputBox() {
                 height={1}
                 paddingLeft={2}
                 paddingRight={2}
-                backgroundColor={i() === acSelected() ? MK.bgHL : MK.bg2}
+                backgroundColor={i() === acSelected() ? C.bg3 : C.bg2}
               >
-                <text fg={acMode() === "file" ? MK.cyan : MK.green}>
-                  {i() === acSelected() ? "▸ " : "  "}
-                </text>
-                <text fg={acMode() === "file" ? MK.white : MK.green}>{item.label}</text>
+                {/* cmd */}
+                <text fg={C.orange} width={16}>{item.label}</text>
+                {/* desc */}
+                <text fg={C.gray}>{item.desc}</text>
               </box>
             )}
           </For>
         </box>
       </Show>
 
-      {/* Input row */}
+      {/* Input box: ✦ + input field */}
       <box
         width="100%"
-        flexDirection="row"
-        alignItems="center"
-        height={3}
-        paddingLeft={1}
-        paddingRight={1}
-        borderTop
-        borderColor={MK.border}
+        flexDirection="column"
+        backgroundColor={C.bg2}
+        paddingLeft={2}
+        paddingRight={2}
+        paddingTop={1}
+        paddingBottom={1}
       >
-        <text fg={glyphColor()} marginRight={1}>{glyphChar()}</text>
-        <input
-          ref={inputRef}
-          flexGrow={1}
-          placeholder="Ask anything..."
-          placeholderColor={MK.border}
-          backgroundColor={MK.bg}
-          textColor={MK.white}
-          focusedBackgroundColor={MK.bg}
-          focusedTextColor={MK.white}
-          focused
-          onInput={(val: string) => handleInput(val)}
-          onSubmit={(val: string) => handleSubmit(val)}
-        />
+        {/* Row: glyph + input */}
+        <box width="100%" flexDirection="row" alignItems="center">
+          <text fg={C.blue} marginRight={1}>✦</text>
+          <input
+            ref={inputRef}
+            flexGrow={1}
+            placeholder='Ask anything... "What is the tech stack of this project?"'
+            placeholderColor={C.gray2}
+            backgroundColor={C.bg2}
+            textColor={C.white}
+            focusedBackgroundColor={C.bg2}
+            focusedTextColor={C.white}
+            focused
+            onInput={(val: string) => handleInput(val)}
+            onSubmit={(val: string) => handleSubmit(val)}
+          />
+        </box>
+
+        {/* input-meta: Ask · glm-5 · minimal */}
+        <box width="100%" flexDirection="row" height={1} marginTop={1}>
+          <text fg={modeColor()}>{modeLabel()}</text>
+          <text fg={C.gray2}>{" · "}</text>
+          <text fg={C.gray}>{state.model || "—"}</text>
+          <text fg={C.gray2}>{" · "}</text>
+          <text fg={C.gray3}>minimal</text>
+        </box>
       </box>
+
     </box>
   )
 }

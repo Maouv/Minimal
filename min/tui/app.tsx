@@ -1,19 +1,20 @@
-import { StatusBar, FooterBar } from "./components/status.tsx"
-import { ContextPanel } from "./components/context.tsx"
+// app.tsx — layout sesuai HTML ref:
+// [chat - full width, full height]
+// [ctx-bar - atas input, conditional]
+// [input-zone]
+// [status-bar - paling bawah]
 import { ChatView } from "./components/chat.tsx"
 import { InputBox } from "./components/input.tsx"
-import { MK } from "./theme.ts"
+import { CtxBar, StatusBar } from "./components/status.tsx"
+import { C } from "./theme.ts"
 
 export function App() {
   return (
-    <box width="100%" height="100%" flexDirection="column" backgroundColor={MK.bg}>
-      <StatusBar />
-      <box flexGrow={1} flexDirection="row" overflow="hidden">
-        <ContextPanel />
-        <ChatView />
-      </box>
+    <box width="100%" height="100%" flexDirection="column" backgroundColor={C.bg}>
+      <ChatView />
+      <CtxBar />
       <InputBox />
-      <FooterBar />
+      <StatusBar />
     </box>
   )
 }

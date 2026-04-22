@@ -1,16 +1,24 @@
-// status.tsx — status bar atas (mode + model) dan footer bawah (tokens + context files)
+// status.tsx — status bar paling bawah: Ask · glm-5          minimal
+// + ctx-bar di atas input: src/context.py applied · src/llm.py    3,080 tok
 import { createMemo, For, Show } from "solid-js"
 import { state } from "../state.ts"
-import { MK, MODE_COLOR } from "../theme.ts"
+import { C, MODE_COLOR } from "../theme.ts"
 
 function fmtK(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
-// Bar atas: MODE │ model name               error
+// ── Status bar — paling bawah ─────────────────────────────────────────────────
+// Ask · glm-5                                              minimal
 export function StatusBar() {
-  const modeColor = createMemo(() => MODE_COLOR[state.mode] ?? MK.white)
-  const modelColor = createMemo(() => state.streaming ? MK.orange : MK.comment)
+  const modeColor = createMemo(() => MODE_COLOR[state.mode] ?? C.cyan)
+  const modeLabel = createMemo(() => {
+    if (state.streaming) return "Thinking..."
+    const m: Record<string, string> = {
+      "ask": "Ask", "edit-block": "Edit", "edit-udiff": "Edit", "edit-whole": "Edit",
+    }
+    return m[state.mode] ?? state.mode
+  })
 
   return (
     <box
@@ -18,75 +26,59 @@ export function StatusBar() {
       height={1}
       flexDirection="row"
       alignItems="center"
-      backgroundColor={MK.bg2}
-      paddingLeft={1}
-      paddingRight={1}
+      backgroundColor={C.bg}
+      paddingLeft={2}
+      paddingRight={2}
     >
-      {/* Mode badge */}
-      <text fg={modeColor()} bold>{state.mode.toUpperCase()}</text>
-      <text fg={MK.border}>{" │ "}</text>
-      <text fg={modelColor()}>{state.model || "—"}</text>
-
-      <box flexGrow={1} />
-
-      {/* Error */}
+      <text fg={modeColor()}>{modeLabel()}</text>
+      <text fg={C.gray2}>{" · "}</text>
+      <text fg={C.gray}>{state.model || "—"}</text>
       <Show when={state.error}>
-        <text fg={MK.pink}>{`⚠ ${state.error!.slice(0, 50)}`}</text>
+        <text fg={C.gray2}>{" · "}</text>
+        <text fg={C.pink}>{state.error!.slice(0, 40)}</text>
       </Show>
+      <box flexGrow={1} />
+      <text fg={C.gray3}>minimal</text>
     </box>
   )
 }
 
-// Footer bawah: context files applied · other.py          3,080 tok
-export function FooterBar() {
-  const tokStr = createMemo(() => {
-    const parts: string[] = []
-    if (state.totalTokens > 0) parts.push(`ctx:${fmtK(state.totalTokens)}`)
-    if (state.inputTokens > 0) parts.push(`in:${fmtK(state.inputTokens)}`)
-    if (state.outputTokens > 0) parts.push(`out:${fmtK(state.outputTokens)}`)
-    return parts.join("  ")
-  })
-
-  const ctxFiles = createMemo(() => state.contextFiles.slice(0, 3))
+// ── Context bar — di atas input ───────────────────────────────────────────────
+// src/context.py applied · src/llm.py                      3,080 tok
+export function CtxBar() {
+  const hasFiles = createMemo(() => state.contextFiles.length > 0)
+  const tokStr   = createMemo(() =>
+    state.totalTokens > 0 ? `${fmtK(state.totalTokens)} tok` : ""
+  )
 
   return (
-    <box
-      width="100%"
-      height={1}
-      flexDirection="row"
-      alignItems="center"
-      backgroundColor={MK.bg2}
-      paddingLeft={1}
-      paddingRight={1}
-    >
-      {/* Context files — compact list */}
-      <Show
-        when={ctxFiles().length > 0}
-        fallback={<text fg={MK.border}>no context</text>}
+    <Show when={hasFiles()}>
+      <box
+        width="100%"
+        height={1}
+        flexDirection="row"
+        alignItems="center"
+        backgroundColor={C.bg}
+        paddingLeft={2}
+        paddingRight={2}
       >
-        <For each={ctxFiles()}>
+        <For each={state.contextFiles}>
           {(f, i) => {
             const parts = f.path.replace(/\\/g, "/").split("/")
             const short = parts.slice(-2).join("/")
             return (
               <box flexDirection="row">
                 <Show when={i() > 0}>
-                  <text fg={MK.border}>{" · "}</text>
+                  <text fg={C.gray3}>{" · "}</text>
                 </Show>
-                <text fg={f.readonly ? MK.comment : MK.cyan}>{short}</text>
+                <text fg={C.gray}>{short}</text>
               </box>
             )
           }}
         </For>
-        <Show when={state.contextFiles.length > 3}>
-          <text fg={MK.border}>{` +${state.contextFiles.length - 3}`}</text>
-        </Show>
-      </Show>
-
-      <box flexGrow={1} />
-
-      {/* Token counter */}
-      <text fg={MK.comment}>{tokStr()}</text>
-    </box>
+        <box flexGrow={1} />
+        <text fg={C.gray2}>{tokStr()}</text>
+      </box>
+    </Show>
   )
 }

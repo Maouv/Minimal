@@ -1,23 +1,10 @@
-// chat.tsx — message history dengan markdown rendering + styled diff
-import { For, Show } from "solid-js"
+// chat.tsx — full width chat, no sidebar
+// Layout: empty state | messages list
+// User msg: input-box style (glyph ✦ + text)
+// AI msg: plain text body + optional thinking + code/diff blocks
+import { For, Show, createMemo } from "solid-js"
 import { state, type Message } from "../state.ts"
-import { MK, getMonokaiStyle } from "../theme.ts"
-
-function roleFg(role: string): string {
-  switch (role) {
-    case "user":      return MK.green
-    case "assistant": return MK.white
-    default:          return MK.comment
-  }
-}
-
-function roleLabel(role: string): string {
-  switch (role) {
-    case "user":      return "▸ you"
-    case "assistant": return "▸ min"
-    default:          return "▸ sys"
-  }
-}
+import { C, getMonokaiStyle } from "../theme.ts"
 
 function fileExtension(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase() ?? ""
@@ -31,8 +18,45 @@ function fileExtension(path: string): string {
   return map[ext] ?? ext
 }
 
-function MessageRow(props: { msg: Message }) {
-  const isUser = () => props.msg.role === "user"
+// ── Empty state ───────────────────────────────────────────────────────────────
+function EmptyState() {
+  return (
+    <box
+      width="100%"
+      flexGrow={1}
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      backgroundColor={C.bg}
+    >
+      <text fg={C.blue}>✦  minimal</text>
+      <box height={2} />
+      <text fg={C.gray}>ask anything or type / for commands</text>
+    </box>
+  )
+}
+
+// ── User message ──────────────────────────────────────────────────────────────
+// Sama persis dengan style input bar: glyph ✦ + teks
+function UserMsg(props: { content: string }) {
+  return (
+    <box
+      width="100%"
+      flexDirection="row"
+      paddingLeft={2}
+      paddingRight={2}
+      paddingTop={1}
+      paddingBottom={1}
+      backgroundColor={C.bg}
+    >
+      <text fg={C.blue} marginRight={1}>✦</text>
+      <text fg={C.white} flexGrow={1} flexWrap="wrap">{props.content}</text>
+    </box>
+  )
+}
+
+// ── AI message ────────────────────────────────────────────────────────────────
+function AiMsg(props: { msg: Message }) {
   const syntaxStyle = getMonokaiStyle()
 
   return (
@@ -43,35 +67,39 @@ function MessageRow(props: { msg: Message }) {
       paddingRight={2}
       paddingTop={1}
       paddingBottom={1}
-      backgroundColor={isUser() ? MK.bg3 : MK.bg}
+      backgroundColor={C.bg}
     >
-      <text fg={roleFg(props.msg.role)}>{roleLabel(props.msg.role)}</text>
-
+      {/* Content — markdown dengan syntax highlight */}
       <markdown
         content={props.msg.content}
         syntaxStyle={syntaxStyle}
-        fg={roleFg(props.msg.role)}
+        fg={C.white}
         streaming={!props.msg.done}
         width="100%"
       />
 
+      {/* Diff blocks */}
       <Show when={props.msg.done && props.msg.edits && props.msg.edits!.length > 0}>
         <For each={props.msg.edits}>
           {(edit) => (
             <box width="100%" flexDirection="column" marginTop={1}>
+              {/* diff-top bar: filename · +N -N · Applied */}
               <box
                 width="100%"
                 flexDirection="row"
                 height={1}
                 paddingLeft={1}
                 paddingRight={1}
-                backgroundColor={MK.bgHL}
+                backgroundColor={C.bg2}
               >
-                <text fg={edit.success ? MK.green : MK.pink}>{edit.success ? "✓" : "✗"}</text>
-                <text fg={MK.comment} marginLeft={1}>{edit.file}</text>
+                <text fg={C.cyan}>{edit.file}</text>
                 <box flexGrow={1} />
-                <text fg={MK.comment}>{edit.success ? "applied" : (edit.error ?? "failed")}</text>
+                <text fg={C.gray}>
+                  {edit.success ? `Applied to ${edit.file}` : (edit.error ?? "failed")}
+                </text>
               </box>
+
+              {/* diff body */}
               <Show when={edit.diff}>
                 <diff
                   diff={edit.diff}
@@ -79,14 +107,13 @@ function MessageRow(props: { msg: Message }) {
                   view="unified"
                   filetype={fileExtension(edit.file)}
                   syntaxStyle={syntaxStyle}
-                  showLineNumbers={true}
-                  fg={MK.white}
-                  addedBg={MK.addedBg}
-                  removedBg={MK.removedBg}
-                  addedSignColor={MK.addedSign}
-                  removedSignColor={MK.removedSign}
-                  lineNumberFg={MK.lineNumFg}
-                  lineNumberBg={MK.lineNumBg}
+                  showLineNumbers={false}
+                  fg={C.white}
+                  addedBg="#0d1f00"
+                  removedBg="#1f0009"
+                  contextBg={C.bg}
+                  addedSignColor={C.gdim}
+                  removedSignColor={C.pink}
                 />
               </Show>
             </box>
@@ -97,18 +124,31 @@ function MessageRow(props: { msg: Message }) {
   )
 }
 
+// ── Chat view ─────────────────────────────────────────────────────────────────
 export function ChatView() {
+  const hasMessages = createMemo(() => state.messages.length > 0)
+
   return (
     <scrollbox
       flexGrow={1}
       scrollY
       stickyScroll
       stickyStart="bottom"
-      backgroundColor={MK.bg}
+      backgroundColor={C.bg}
     >
       <box width="100%" flexDirection="column">
+        <Show when={!hasMessages()}>
+          <EmptyState />
+        </Show>
         <For each={state.messages}>
-          {(msg) => <MessageRow msg={msg} />}
+          {(msg) => (
+            <Show
+              when={msg.role === "user"}
+              fallback={<AiMsg msg={msg} />}
+            >
+              <UserMsg content={msg.content} />
+            </Show>
+          )}
         </For>
       </box>
     </scrollbox>
