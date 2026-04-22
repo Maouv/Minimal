@@ -46,5 +46,5 @@ render(() => <App />, {
   exitOnCtrlC: true,
   exitSignals: ["SIGTERM"],
   clearOnShutdown: true,
-  backgroundColor: "#1a1b26",
+  backgroundColor: "#272822",
 })

@@ -1,28 +1,16 @@
-// status.tsx — top status bar: mode | model | tokens | error
-import { createMemo } from "solid-js"
+// status.tsx — status bar atas (mode + model) dan footer bawah (tokens + context files)
+import { createMemo, For, Show } from "solid-js"
 import { state } from "../state.ts"
-
-const MODE_COLOR: Record<string, string> = {
-  "ask":        "#7aa2f7",
-  "edit-block": "#e0af68",
-  "edit-udiff": "#bb9af7",
-  "edit-whole": "#f7768e",
-}
+import { MK, MODE_COLOR } from "../theme.ts"
 
 function fmtK(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
+// Bar atas: MODE │ model name               error
 export function StatusBar() {
-  const modeColor = createMemo(() => MODE_COLOR[state.mode] ?? "#c0caf5")
-  const modelColor = createMemo(() => state.streaming ? "#7dcfff" : "#565f89")
-  const tokens = createMemo(() => {
-    const t = state.totalTokens > 0 ? `ctx:${fmtK(state.totalTokens)}` : ""
-    const io = state.inputTokens > 0
-      ? `  in:${fmtK(state.inputTokens)} out:${fmtK(state.outputTokens)}`
-      : ""
-    return t + io
-  })
+  const modeColor = createMemo(() => MODE_COLOR[state.mode] ?? MK.white)
+  const modelColor = createMemo(() => state.streaming ? MK.orange : MK.comment)
 
   return (
     <box
@@ -30,18 +18,75 @@ export function StatusBar() {
       height={1}
       flexDirection="row"
       alignItems="center"
-      backgroundColor="#1a1b26"
+      backgroundColor={MK.bg2}
       paddingLeft={1}
       paddingRight={1}
     >
-      <text fg={modeColor()}>{state.mode.toUpperCase()}</text>
-      <text fg="#3b3d57">{"  │  "}</text>
+      {/* Mode badge */}
+      <text fg={modeColor()} bold>{state.mode.toUpperCase()}</text>
+      <text fg={MK.border}>{" │ "}</text>
       <text fg={modelColor()}>{state.model || "—"}</text>
+
       <box flexGrow={1} />
-      {state.error && (
-        <text fg="#f7768e">{`⚠ ${state.error.slice(0, 40)}  `}</text>
-      )}
-      <text fg="#565f89">{tokens()}</text>
+
+      {/* Error */}
+      <Show when={state.error}>
+        <text fg={MK.pink}>{`⚠ ${state.error!.slice(0, 50)}`}</text>
+      </Show>
+    </box>
+  )
+}
+
+// Footer bawah: context files applied · other.py          3,080 tok
+export function FooterBar() {
+  const tokStr = createMemo(() => {
+    const parts: string[] = []
+    if (state.totalTokens > 0) parts.push(`ctx:${fmtK(state.totalTokens)}`)
+    if (state.inputTokens > 0) parts.push(`in:${fmtK(state.inputTokens)}`)
+    if (state.outputTokens > 0) parts.push(`out:${fmtK(state.outputTokens)}`)
+    return parts.join("  ")
+  })
+
+  const ctxFiles = createMemo(() => state.contextFiles.slice(0, 3))
+
+  return (
+    <box
+      width="100%"
+      height={1}
+      flexDirection="row"
+      alignItems="center"
+      backgroundColor={MK.bg2}
+      paddingLeft={1}
+      paddingRight={1}
+    >
+      {/* Context files — compact list */}
+      <Show
+        when={ctxFiles().length > 0}
+        fallback={<text fg={MK.border}>no context</text>}
+      >
+        <For each={ctxFiles()}>
+          {(f, i) => {
+            const parts = f.path.replace(/\\/g, "/").split("/")
+            const short = parts.slice(-2).join("/")
+            return (
+              <box flexDirection="row">
+                <Show when={i() > 0}>
+                  <text fg={MK.border}>{" · "}</text>
+                </Show>
+                <text fg={f.readonly ? MK.comment : MK.cyan}>{short}</text>
+              </box>
+            )
+          }}
+        </For>
+        <Show when={state.contextFiles.length > 3}>
+          <text fg={MK.border}>{` +${state.contextFiles.length - 3}`}</text>
+        </Show>
+      </Show>
+
+      <box flexGrow={1} />
+
+      {/* Token counter */}
+      <text fg={MK.comment}>{tokStr()}</text>
     </box>
   )
 }
