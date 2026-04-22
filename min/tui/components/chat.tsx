@@ -32,24 +32,27 @@ export function createChatView(renderer: CliRenderer): ScrollBoxRenderable {
   const rows: MessageRow[] = []
 
   // Watch messages array — tambah row baru kalau ada message baru
+  // Watch message count — tambah row baru
   createEffect(() => {
-    const msgs = state.messages
-    const newCount = msgs.length
+    const newCount = state.messages.length  // reactive trigger
 
-    // Tambah rows yang belum ada
     for (let i = rows.length; i < newCount; i++) {
-      const row = buildMessageRow(ctx, msgs[i], i)
+      const msg = state.messages[i]
+      const row = buildMessageRow(ctx, msg, i)
       scroll.content.add(row.container)
       rows.push(row)
     }
+  })
 
-    // Update row terakhir kalau masih streaming (append token)
-    if (rows.length > 0) {
-      const last = rows[rows.length - 1]
-      const msg = msgs[last.msgIdx]
-      if (msg && !msg.done) {
-        last.bodyText.content = msg.content
-      }
+  // Watch streaming content — update token per token
+  createEffect(() => {
+    if (!state.streaming) return
+    const msgs = state.messages
+    if (rows.length === 0) return
+    const last = rows[rows.length - 1]
+    const msg = msgs[last.msgIdx]
+    if (msg && !msg.done) {
+      last.bodyText.content = msg.content
     }
   })
 
