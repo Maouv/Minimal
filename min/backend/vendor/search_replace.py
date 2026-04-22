@@ -547,6 +547,8 @@ def find_original_update_blocks(content: str):
     Parse content dan yield (filename, original, updated) tuples.
     Raises ValueError jika format tidak valid.
     """
+    import re as _re
+
     lines = content.splitlines(keepends=True)
     i = 0
     current_file = None
@@ -557,6 +559,24 @@ def find_original_update_blocks(content: str):
         # Detect filename — baris sebelum <<<<<<< SEARCH
         # Bisa dalam code fence (```python) atau plain
         stripped = line.strip()
+
+        # Handle XML-style <file path="..."> tag — extract filename, skip content until </file>
+        xml_file_match = _re.match(r'<file\s+path=["\']?([^"\'>\s]+)["\']?', stripped)
+        if xml_file_match:
+            current_file = xml_file_match.group(1)
+            # Skip everything until </file>
+            i += 1
+            while i < len(lines):
+                if lines[i].strip().startswith("</file>"):
+                    i += 1  # skip the </file> line too
+                    break
+                i += 1
+            continue
+
+        # Skip stray closing </file> tags
+        if stripped == "</file>" or stripped.startswith("</file>"):
+            i += 1
+            continue
 
         # Cek apakah ini fence ``` — skip fence markers tapi ambil language/filename
         if stripped.startswith("```"):
@@ -573,7 +593,7 @@ def find_original_update_blocks(content: str):
                 # Coba ambil filename dari baris sebelumnya
                 for back in range(i - 1, max(i - 5, -1), -1):
                     candidate = lines[back].strip()
-                    if candidate and not candidate.startswith("#") and not candidate.startswith("```"):
+                    if candidate and not candidate.startswith("#") and not candidate.startswith("```") and not candidate.startswith("<"):
                         current_file = candidate
                         break
 
@@ -615,7 +635,7 @@ def find_original_update_blocks(content: str):
             continue
 
         # Baris yang bisa jadi filename: tidak kosong, tidak comment, tidak code
-        if stripped and not stripped.startswith("#") and not stripped.startswith("//"):
+        if stripped and not stripped.startswith("#") and not stripped.startswith("//") and not stripped.startswith("<"):
             # Hanya set jika terlihat seperti path (ada . atau /)
             if "." in stripped or "/" in stripped:
                 current_file = stripped

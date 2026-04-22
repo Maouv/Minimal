@@ -61,7 +61,9 @@ Rules:
 - SEARCH content must match the file exactly (whitespace, indentation, no ellipsis)
 - One block per change; multiple blocks allowed for the same or different files
 - Never truncate or abbreviate SEARCH content
-- Do not wrap the filename in backticks or any other markers"""
+- Do not wrap the filename in backticks or any other markers
+- Do NOT show file content before the block — go straight to filename then <<<<<<< SEARCH
+- Do NOT use XML tags like <file path="..."> or </file> — plain filename only"""
 
 
 def _udiff_instructions(file_paths: list[str]) -> str:
