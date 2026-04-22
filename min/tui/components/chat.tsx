@@ -29,11 +29,12 @@ function EmptyState() {
       alignItems="center"
       justifyContent="center"
       backgroundColor={C.bg}
+      marginTop={3}
     >
       {/* Logo + brand */}
       <box flexDirection="row" alignItems="center" marginBottom={3}>
         <text fg={C.blue}>{"✦  "}</text>
-        <text fg={C.white}>minimal</text>
+        <text fg={C.white}>Minimal</text>
       </box>
 
       {/* History preview items — sama style dengan user message */}
@@ -49,7 +50,7 @@ function EmptyState() {
           marginBottom={1}
         >
           <text fg={C.blue} marginRight={1}>✦</text>
-          <text fg={C.white} flexWrap="wrap">gimana cara fix null pointer di context.py line 42?</text>
+          <text fg={C.white} flexWrap="wrap">Can you fix null pointer on context.py line 42?</text>
         </box>
         <box
           width="100%"
@@ -61,7 +62,7 @@ function EmptyState() {
           paddingBottom={1}
         >
           <text fg={C.blue} marginRight={1}>✦</text>
-          <text fg={C.gray} flexWrap="wrap">/edit-block fix the null pointer in context.py</text>
+          <text fg={C.gray} flexWrap="wrap">/edit-block fix null pointer in context.py</text>
         </box>
       </box>
     </box>

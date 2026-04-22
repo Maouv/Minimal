@@ -1,0 +1,365 @@
+"""
+Test suite for coder.py — _apply_whole() robustness.
+
+Run:
+    cd min && python3 -m pytest min/tests/test_coder.py -v
+
+Covers 3 parsing strategies + edge cases + realistic AI responses.
+"""
+
+import pytest
+from min.backend.coder import _apply_whole, _match_file, EditResult
+
+
+# ═════════════════════════════════════════════════════
+# FIXTURES
+# ═════════════════════════════════════════════════════
+
+SAMPLE_FILES = {
+    "/project/main.py": 'def hello():\n    print("hello")\n',
+    "/project/utils.py": '# utils\n\ndef helper():\n    pass\n',
+}
+
+SINGLE_FILE = {
+    "/alone.py": "# old content\n",
+}
+
+# Fence constants (avoid syntax errors with backticks)
+FENCE_PYTHON = "```python"   # opening fence with lang tag
+FENCE_PLAIN = "```"          # plain opening fence
+FENCE_CLOSE = "```"           # closing fence
+
+
+# ═════════════════════════════════════════════════════
+# HELPERS
+# ═════════════════════════════════════════════════════
+
+def assert_success(results: list[EditResult], expected_file: str):
+    """Assert exactly 1 successful result for expected_file."""
+    assert len(results) == 1, f"Expected 1 result, got {len(results)}"
+    assert results[0].success is True, f"Expected success, got error: {results[0].error}"
+    assert results[0].file == expected_file, f"Expected {expected_file}, got {results[0].file}"
+
+
+def assert_error(results: list[EditResult], substring: str):
+    """Assert at least 1 error result containing substring."""
+    errors = [r for r in results if not r.success]
+    assert len(errors) > 0, "Expected at least one error result"
+    assert any(substring in (r.error or "") for r in errors), (
+        f"Substring '{substring}' not found in errors: {[r.error for r in errors]}"
+    )
+
+
+# ═════════════════════════════════════════════════════
+# TEST SUITE: _match_file() helper
+# ═════════════════════════════════════════════════════
+
+class TestMatchFile:
+    def test_exact_match(self):
+        assert _match_file("/project/main.py", SAMPLE_FILES) == "/project/main.py"
+
+    def test_suffix_match(self):
+        assert _match_file("main.py", SAMPLE_FILES) == "/project/main.py"
+
+    def test_basename_match(self):
+        assert _match_file("utils.py", SAMPLE_FILES) == "/project/utils.py"
+
+    def test_no_match_returns_none(self):
+        assert _match_file("nonexistent.py", SAMPLE_FILES) is None
+
+    def test_partial_path_match(self):
+        assert _match_file("project/main.py", SAMPLE_FILES) == "/project/main.py"
+
+
+# ═════════════════════════════════════════════════════
+# STRATEGY 1: Filename ABOVE code fence
+# ═════════════════════════════════════════════════════
+
+class TestStrategy1_FilenameAboveFence:
+
+    def test_single_file_with_lang_tag(self):
+        response = (
+            "/project/main.py\n"
+            + FENCE_PYTHON + "\n"
+            "def new_func():\n"
+            '    print("rewritten")\n'
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/main.py")
+        assert "new_func" in results[0].updated
+
+    def test_multiple_files_multiple_blocks(self):
+        response = (
+            "/project/main.py\n"
+            + FENCE_PYTHON + "\n"
+            "# updated main\n"
+            "x = 1\n"
+            + FENCE_CLOSE + "\n\n"
+            "/project/utils.py\n"
+            + FENCE_PYTHON + "\n"
+            "# updated utils\n"
+            "y = 2\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert len(results) == 2
+        assert all(r.success for r in results)
+
+    def test_content_with_internal_fences_ignored(self):
+        """Content containing backtick-triples should still work."""
+        response = (
+            "/project/utils.py\n"
+            + FENCE_PYTHON + "\n"
+            "def example():\n"
+            "    x = '''string with triple quotes'''\n"
+            "    pass\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/utils.py")
+
+    def test_filename_with_spaces_in_content(self):
+        response = (
+            "/project/main.py\n"
+            + FENCE_PYTHON + "\n"
+            "def complex():\n"
+            '    if True:\n'
+            '        x = "string with    spaces and\\ttabs"\n'
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/main.py")
+
+
+# ═════════════════════════════════════════════════════
+# STRATEGY 2: Filename ON fence line
+# ═════════════════════════════════════════════════════
+
+class TestStrategy2_FilenameOnFenceLine:
+
+    def test_filename_with_lang_on_fence(self):
+        response = (
+            FENCE_PYTHON + " /project/main.py\n"
+            "def fence_line_style():\n"
+            "    pass\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/main.py")
+        assert "fence_line_style" in results[0].updated
+
+    def test_no_lang_tag_just_filename(self):
+        response = (
+            FENCE_PLAIN + " /project/utils.py\n"
+            "# just filename, no language tag\n"
+            "z = 3\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/utils.py")
+
+    def test_extra_spaces_before_filename(self):
+        response = (
+            FENCE_PYTHON + "    /project/main.py\n"
+            "# extra spaces after lang tag\n"
+            "a = 10\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/main.py")
+
+
+# ═════════════════════════════════════════════════════
+# STRATEGY 3: Single block inference (1 file only)
+# ═════════════════════════════════════════════════════
+
+class TestStrategy3_SingleBlockInference:
+
+    def test_single_block_single_file_succeeds(self):
+        response = (
+            FENCE_PLAIN + "\n"
+            "# new content for the only file\n"
+            "inferred = True\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SINGLE_FILE)
+        assert_success(results, "/alone.py")
+        assert "inferred" in results[0].updated
+
+    def test_single_block_multi_files_fails(self):
+        response = (
+            FENCE_PLAIN + "\n"
+            "# which file am I supposed to edit?\n"
+            "ambiguous = True\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_error(results, "Could not parse")
+
+    def test_no_blocks_at_all_errors(self):
+        results = _apply_whole("just plain text without any code fences", SINGLE_FILE)
+        assert_error(results, "Could not parse")
+
+    def test_empty_string_errors(self):
+        results = _apply_whole("", SINGLE_FILE)
+        assert_error(results, "Could not parse")
+
+
+# ═════════════════════════════════════════════════════
+# EDGE CASES & VALIDATION
+# ═════════════════════════════════════════════════════
+
+class TestEdgeCases:
+
+    def test_empty_content_for_matched_file(self):
+        response = (
+            "/project/main.py\n"
+            + FENCE_PLAIN + "\n\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_error(results, "Empty content")
+
+    def test_file_not_in_context_reports_error(self):
+        response = (
+            "/nonexistent/file.py\n"
+            + FENCE_PYTHON + "\n"
+            "content\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_error(results, "not in context")
+
+    def test_very_long_filename_doesnt_crash(self):
+        long_name = "a" * 300 + ".py"
+        response = (
+            long_name + "\n"
+            + FENCE_PYTHON + "\n"
+            "content\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert isinstance(results, list)  # Should not crash
+
+    def test_trailing_newline_added_if_missing(self):
+        response = (
+            FENCE_PLAIN + "\n"
+            "no_newline_here\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SINGLE_FILE)
+        assert_success(results, "/alone.py")
+        assert results[0].updated.endswith("\n"), (
+            f"Must end with newline, got: {repr(results[0].updated[-20:])}"
+        )
+
+    def test_existing_newline_not_doubled(self):
+        response = (
+            FENCE_PLAIN + "\n"
+            "already_has_newline\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SINGLE_FILE)
+        assert_success(results, "/alone.py")
+        assert results[0].updated.endswith("\n")
+        assert not results[0].updated.endswith("\n\n"), "Should not double newlines"
+
+    def test_whitespace_only_content_treated_as_empty(self):
+        response = (
+            "/project/main.py\n"
+            + FENCE_PYTHON + "\n"
+            "   \n   \n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_error(results, "Empty content")
+
+
+# ═════════════════════════════════════════════════════
+# REALISTIC AI RESPONSES (Integration-style)
+# ═════════════════════════════════════════════════════
+
+class TestRealisticAIResponses:
+
+    def test_typical_rewrite_response(self):
+        response = (
+            "/project/main.py\n"
+            + FENCE_PYTHON + '\n'
+            '"""\n'
+            "Main application entry point.\n"
+            "Updated version with error handling.\n"
+            '"""\n\n'
+            "import sys\n\n"
+            "def main():\n"
+            '    try:\n'
+            "        run_application()\n"
+            '    except KeyboardInterrupt:\n'
+            '        print("\\nInterrupted")\n'
+            "        sys.exit(0)\n\n"
+            'if __name__ == "__main__":\n'
+            "    main()\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/main.py")
+        assert "error handling" in results[0].updated
+        assert len(results[0].diff) > 0
+
+    def test_multiple_files_mixed_result(self):
+        response = (
+            "/project/main.py\n"
+            + FENCE_PYTHON + "\n"
+            "# successfully updated\n"
+            "x = 999\n"
+            + FENCE_CLOSE + "\n\n"
+            "/ghost/file.py\n"
+            + FENCE_PYTHON + "\n"
+            "# this file doesnt exist in context\n"
+            "y = 888\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert len(results) == 2
+        successes = [r for r in results if r.success]
+        failures = [r for r in results if not r.success]
+        assert len(successes) == 1
+        assert successes[0].file == "/project/main.py"
+        assert len(failures) == 1
+        assert "not in context" in failures[0].error
+
+    def test_ai_adds_explanation_before_code(self):
+        response = (
+            "Here's the updated file with fixes applied:\n\n"
+            "/project/utils.py\n"
+            + FENCE_PYTHON + "\n"
+            "# Fixed version\n"
+            "def helper():\n"
+            "    return True  # was: pass\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        assert_success(results, "/project/utils.py")
+        assert "Fixed version" in results[0].updated
+
+    def test_ai_uses_relative_paths(self):
+        response = (
+            "utils.py\n"
+            + FENCE_PYTHON + "\n"
+            "# Updated using relative path\n"
+            "def helper():\n"
+            "    # changed\n"
+            "    return 42\n"
+            + FENCE_CLOSE + "\n"
+        )
+        results = _apply_whole(response, SAMPLE_FILES)
+        # Should match via suffix/basename matching
+        assert_success(results, "/project/utils.py")
+
+
+# ═════════════════════════════════════════════════════
+# RUNNER
+# ═════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
