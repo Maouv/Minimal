@@ -67,6 +67,49 @@ async def project_current():
     return {"path": os.getcwd()}
 
 
+@app.get("/project/files")
+async def project_files():
+    """Walk CWD + home dir, return all files (skip hidden + noise dirs)."""
+    import os
+    from pathlib import Path
+
+    SKIP_DIRS = {
+        ".git", "__pycache__", "node_modules", ".venv", "venv",
+        ".mypy_cache", ".ruff_cache", "dist", "build", ".next",
+        ".nuxt", "target", ".cargo",
+    }
+
+    def walk(root: Path) -> list[str]:
+        results: list[str] = []
+        try:
+            for entry in sorted(root.iterdir()):
+                if entry.name.startswith(".") and entry.name not in {".env"}:
+                    continue
+                if entry.is_dir():
+                    if entry.name in SKIP_DIRS:
+                        continue
+                    results.extend(walk(entry))
+                elif entry.is_file():
+                    results.append(str(entry.resolve()))
+        except PermissionError:
+            pass
+        return results
+
+    cwd = Path(os.getcwd())
+    home = Path.home()
+
+    files: list[str] = walk(cwd)
+
+    # Add home files only if home is different and not already covered
+    if home.resolve() != cwd.resolve():
+        existing = set(files)
+        for f in walk(home):
+            if f not in existing:
+                files.append(f)
+
+    return {"files": files, "cwd": str(cwd)}
+
+
 # --- Session ---
 
 @app.post("/session")

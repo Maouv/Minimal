@@ -110,3 +110,14 @@ export async function contextDrop(sessionId: string, path: string): Promise<void
 export async function contextList(sessionId: string): Promise<ContextListResponse> {
   return req("GET", `/context?session_id=${sessionId}`)
 }
+
+// ── Project files ─────────────────────────────────────────────────────────────
+
+export interface ProjectFilesResponse {
+  files: string[]
+  cwd: string
+}
+
+export async function listProjectFiles(): Promise<ProjectFilesResponse> {
+  return req("GET", "/project/files")
+}
