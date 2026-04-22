@@ -1,209 +1,159 @@
-// input.tsx — prompt textarea + slash command autocomplete
-// Paling complex: handle submit, slash detection, autocomplete overlay
-
-import { createEffect, createSignal } from "solid-js"
-import { BoxRenderable, TextRenderable, InputRenderable } from "@opentui/core"
-import type { CliRenderer } from "@opentui/core"
+// input.tsx — prompt input + slash autocomplete
+import { createSignal, For, Show } from "solid-js"
+import { useKeyboard } from "@opentui/solid"
 import { state, setState, pushMessage } from "../state.ts"
-import { sendPrompt, abortSession, contextAdd, contextDrop } from "../client.ts"
-import { consumeStream, setRenderer } from "../stream.ts"
-
-// ── Slash commands ─────────────────────────────────────────────────────────────
+import { sendPrompt, abortSession } from "../client.ts"
+import { consumeStream } from "../stream.ts"
 
 const SLASH_COMMANDS = [
-  { cmd: "/add",   desc: "add file to context" },
-  { cmd: "/drop",  desc: "remove file from context" },
-  { cmd: "/ls",    desc: "list context files" },
-  { cmd: "/clear", desc: "clear messages" },
-  { cmd: "/undo",  desc: "undo last edit" },
-  { cmd: "/help",  desc: "show help" },
-  { cmd: "/mode",  desc: "switch edit mode" },
+  { cmd: "/add",        desc: "add file to context" },
+  { cmd: "/add -r",     desc: "add file as read-only" },
+  { cmd: "/drop",       desc: "remove file from context" },
+  { cmd: "/ls",         desc: "list context files" },
+  { cmd: "/edit-block", desc: "edit with SEARCH/REPLACE" },
+  { cmd: "/edit-udiff", desc: "edit with unified diff" },
+  { cmd: "/edit-whole", desc: "rewrite entire file" },
+  { cmd: "/undo",       desc: "undo last edit" },
+  { cmd: "/diff",       desc: "show last diff" },
+  { cmd: "/clear",      desc: "clear messages" },
+  { cmd: "/reset",      desc: "clear messages + context" },
+  { cmd: "/commit",     desc: "git commit" },
+  { cmd: "/run",        desc: "run shell command" },
+  { cmd: "/tokens",     desc: "show token usage" },
+  { cmd: "/model",      desc: "switch model" },
+  { cmd: "/help",       desc: "show help" },
 ]
 
-// ── Main ─────────────────────────────────────────────────────────────────────
-
-export function createInputBox(renderer: CliRenderer): BoxRenderable {
-    // Outer: input area at bottom
-  const wrapper = new BoxRenderable(renderer, {
-    width: "100%",
-    flexDirection: "column",
-    flexShrink: 0,
-    border: ["top"],
-    borderColor: "#3b3d57",
-    backgroundColor: "#1a1b26",
-  })
-
-  // Autocomplete overlay — shown above input when typing /
-  const autocomplete = new BoxRenderable(renderer, {
-    width: "100%",
-    flexDirection: "column",
-    backgroundColor: "#1e2030",
-    border: ["bottom"],
-    borderColor: "#3b3d57",
-    visible: false,
-  })
-
-  // Input row: prompt glyph + textarea
-  const inputRow = new BoxRenderable(renderer, {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    height: 3,
-    paddingX: 1,
-  })
-
-  // Prompt glyph
-  const glyph = new TextRenderable(renderer, {
-    content: "›",
-    fg: "#7aa2f7",
-    flexShrink: 0,
-    marginRight: 1,
-    height: 1,
-  })
-
-  // Single-line input
-  const input = new InputRenderable(renderer, {
-    flexGrow: 1,
-    placeholder: "ask or /command…",
-    placeholderColor: "#3b3d57",
-    backgroundColor: "#1a1b26",
-    textColor: "#c0caf5",
-    focusedBackgroundColor: "#1a1b26",
-    focusedTextColor: "#c0caf5",
-  })
-
-  input.on("enter", () => handleSubmit())
-  input.on("return", () => handleSubmit())
-
-  inputRow.add(glyph)
-  inputRow.add(input)
-  wrapper.add(autocomplete)
-  wrapper.add(inputRow)
-
-  // ── Autocomplete rows ───────────────────────────────────────────────────────
+export function InputBox() {
   const [acItems, setAcItems] = createSignal<typeof SLASH_COMMANDS>([])
   const [acSelected, setAcSelected] = createSignal(0)
-  let acRows: BoxRenderable[] = []
+  const glyphContent = () => state.streaming ? "⊙" : "✦"
+  const glyphColor = () => state.streaming ? "#e0af68" : "#7aa2f7"
 
-  createEffect(() => {
+  // Handle autocomplete keyboard navigation
+  useKeyboard((key) => {
     const items = acItems()
-
-    // Clear old rows
-    for (const row of acRows) {
-      autocomplete.remove(row.id)
-    }
-    acRows = []
-
-    autocomplete.visible = items.length > 0
-
-    items.forEach((item, i) => {
-      const row = new BoxRenderable(renderer, {
-        width: "100%",
-        flexDirection: "row",
-        height: 1,
-        paddingX: 2,
-        backgroundColor: i === acSelected() ? "#2a2b40" : "#1e2030",
-      })
-      const cmdT = new TextRenderable(renderer, { content: item.cmd, fg: "#7aa2f7", flexShrink: 0, marginRight: 2 })
-      const descT = new TextRenderable(renderer, { content: item.desc, fg: "#565f89", flexGrow: 1 })
-      row.add(cmdT)
-      row.add(descT)
-      autocomplete.add(row)
-      acRows.push(row)
-    })
-  })
-
-  // ── Input change → slash detection ─────────────────────────────────────────
-  input.on("input", () => {
-    const val: string = input.value
-
-    if (val.startsWith("/") && !val.includes(" ")) {
-      const matches = SLASH_COMMANDS.filter(c => c.cmd.startsWith(val))
-      setAcItems(matches)
-      setAcSelected(0)
-    } else {
-      setAcItems([])
-    }
-  })
-
-  // ── Key handling for autocomplete navigation ────────────────────────────────
-  renderer.keyInput.on("keypress", (key) => {
-    const items = acItems()
-    if (items.length === 0) return false
+    if (items.length === 0) return
 
     if (key.name === "up") {
       setAcSelected(s => Math.max(0, s - 1))
-      return true
+      return
     }
     if (key.name === "down") {
       setAcSelected(s => Math.min(items.length - 1, s + 1))
-      return true
-    }
-    if (key.name === "tab") {
-      // Complete the slash command
-      input.value = items[acSelected()].cmd + " "
-      setAcItems([])
-      return true
+      return
     }
     if (key.name === "escape") {
       setAcItems([])
-      return true
-    }
-    return false
-  })
-
-  // ── Disable input while streaming ──────────────────────────────────────────
-  createEffect(() => {
-    if (state.streaming) {
-      glyph.fg = "#e0af68"
-      glyph.content = "⊙"
-    } else {
-      glyph.fg = "#7aa2f7"
-      glyph.content = "›"
+      return
     }
   })
 
-  // ── Submit handler ─────────────────────────────────────────────────────────
-  async function handleSubmit() {
-    const raw = input.value.trim()
-    process.stderr.write(`[debug] handleSubmit called, raw="${raw}"\n`)
+  async function handleSubmit(value: string) {
+    const raw = value.trim()
     if (!raw) return
+
     if (state.streaming) {
-      // Ctrl+C style abort
       if (state.sessionId) await abortSession(state.sessionId).catch(() => {})
       setState("streaming", false)
       return
     }
 
-    input.value = ""
-    setAcItems([])
-
-    // Slash command — send as prompt (backend handles /commands)
     if (!state.sessionId) {
       setState("error", "no active session")
       return
     }
 
-    const idx = pushMessage("user", raw)
-    process.stderr.write(`[debug] pushMessage idx=${idx}, messages.length=${state.messages.length}\n`)
+    setAcItems([])
+    pushMessage("user", raw)
 
     try {
       const response = await sendPrompt(state.sessionId, raw)
-      process.stderr.write(`[debug] sendPrompt ok, consuming stream...\n`)
       await consumeStream(response)
-      process.stderr.write(`[debug] consumeStream done\n`)
     } catch (err) {
-      process.stderr.write(`[debug] error: ${err}\n`)
       setState("error", String(err))
       setState("streaming", false)
     }
   }
 
-  // Pass renderer to stream for manual redraw
-  setRenderer(renderer)
+  function handleInput(value: string) {
+    if (value.startsWith("/") && !value.includes(" ")) {
+      const matches = SLASH_COMMANDS.filter(c => c.cmd.startsWith(value))
+      setAcItems(matches)
+      setAcSelected(0)
+    } else {
+      setAcItems([])
+    }
+  }
 
-  // Auto-focus input on mount
-  input.focus()
+  return (
+    <box
+      width="100%"
+      flexDirection="column"
+      flexShrink={0}
+      borderTop
+      borderColor="#3b3d57"
+      backgroundColor="#1a1b26"
+    >
+      <Show when={acItems().length > 0}>
+        <box
+          width="100%"
+          flexDirection="column"
+          backgroundColor="#1e2030"
+          borderBottom
+          borderColor="#3b3d57"
+        >
+          <For each={acItems()}>
+            {(item, i) => (
+              <box
+                width="100%"
+                flexDirection="row"
+                height={1}
+                paddingLeft={2}
+                paddingRight={2}
+                backgroundColor={i() === acSelected() ? "#2a2b40" : "#1e2030"}
+              >
+                <text fg="#7aa2f7" marginRight={2}>{item.cmd}</text>
+                <text fg="#565f89">{item.desc}</text>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
 
-  return wrapper
+      <box
+        width="100%"
+        flexDirection="row"
+        alignItems="center"
+        height={3}
+        paddingLeft={1}
+        paddingRight={1}
+      >
+        <text fg={glyphColor()} marginRight={1}>{glyphContent()}</text>
+        <input
+          flexGrow={1}
+          placeholder="ask or /command…"
+          placeholderColor="#3b3d57"
+          backgroundColor="#1a1b26"
+          textColor="#c0caf5"
+          focusedBackgroundColor="#1a1b26"
+          focusedTextColor="#c0caf5"
+          focus
+          onInput={(val: string) => handleInput(val)}
+          onEnter={(val: string) => handleSubmit(val)}
+        />
+      </box>
+
+      <box
+        width="100%"
+        flexDirection="row"
+        paddingLeft={2}
+        paddingBottom={1}
+      >
+        <text fg="#7aa2f7">{state.mode}</text>
+        <text fg="#3b3d57">{"  ·  "}</text>
+        <text fg="#565f89">{state.model}</text>
+      </box>
+    </box>
+  )
 }

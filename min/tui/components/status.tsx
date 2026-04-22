@@ -1,9 +1,5 @@
-// status.tsx — 1-baris status bar: mode | model | tokens
-// Pattern: createEffect watches state → update TextRenderable property
-
-import { createEffect } from "solid-js"
-import { BoxRenderable, TextRenderable } from "@opentui/core"
-import type { CliRenderer } from "@opentui/core"
+// status.tsx — top status bar: mode | model | tokens | error
+import { createMemo } from "solid-js"
 import { state } from "../state.ts"
 
 const MODE_COLOR: Record<string, string> = {
@@ -13,87 +9,39 @@ const MODE_COLOR: Record<string, string> = {
   "edit-whole": "#f7768e",
 }
 
-export function createStatusBar(renderer: CliRenderer): BoxRenderable {
-    const bar = new BoxRenderable(renderer, {
-    width: "100%",
-    height: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1a1b26",
-    paddingX: 1,
-  })
-
-  const modeText = new TextRenderable(renderer, {
-    content: state.mode.toUpperCase(),
-    fg: MODE_COLOR[state.mode] ?? "#c0caf5",
-    flexShrink: 0,
-  })
-
-  const sep1 = new TextRenderable(renderer, { content: "  │  ", fg: "#3b3d57", flexShrink: 0 })
-
-  const modelText = new TextRenderable(renderer, {
-    content: state.model || "—",
-    fg: "#565f89",
-    flexShrink: 0,
-  })
-
-  const spacer = new BoxRenderable(renderer, { flexGrow: 1 })
-
-  const errText = new TextRenderable(renderer, { content: "", fg: "#f7768e", flexShrink: 0, visible: false })
-
-  const tokenText = new TextRenderable(renderer, {
-    content: "",
-    fg: "#565f89",
-    flexShrink: 0,
-  })
-
-  bar.add(modeText)
-  bar.add(sep1)
-  bar.add(modelText)
-  bar.add(spacer)
-  bar.add(errText)
-  bar.add(tokenText)
-
-  createEffect(() => {
-    const mode = state.mode
-    modeText.content = mode.toUpperCase()
-    modeText.fg = MODE_COLOR[mode] ?? "#c0caf5"
-  })
-
-  createEffect(() => { modelText.content = state.model || "—" })
-
-  createEffect(() => {
-    tokenText.content = formatTokens(state.totalTokens, state.inputTokens, state.outputTokens)
-  })
-
-  createEffect(() => {
-    const err = state.error
-    if (err) {
-      errText.content = `⚠ ${trunc(err, 40)}  `
-      errText.visible = true
-    } else {
-      errText.visible = false
-    }
-  })
-
-  createEffect(() => {
-    modelText.fg = state.streaming ? "#7dcfff" : "#565f89"
-  })
-
-  return bar
-}
-
-function formatTokens(total: number, input: number, output: number): string {
-  if (total === 0 && input === 0) return ""
-  const t = total > 0 ? `ctx:${fmtK(total)}` : ""
-  const io = input > 0 ? `  in:${fmtK(input)} out:${fmtK(output)}` : ""
-  return t + io
-}
-
 function fmtK(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
-function trunc(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + "…" : s
+export function StatusBar() {
+  const modeColor = createMemo(() => MODE_COLOR[state.mode] ?? "#c0caf5")
+  const modelColor = createMemo(() => state.streaming ? "#7dcfff" : "#565f89")
+  const tokens = createMemo(() => {
+    const t = state.totalTokens > 0 ? `ctx:${fmtK(state.totalTokens)}` : ""
+    const io = state.inputTokens > 0
+      ? `  in:${fmtK(state.inputTokens)} out:${fmtK(state.outputTokens)}`
+      : ""
+    return t + io
+  })
+
+  return (
+    <box
+      width="100%"
+      height={1}
+      flexDirection="row"
+      alignItems="center"
+      backgroundColor="#1a1b26"
+      paddingLeft={1}
+      paddingRight={1}
+    >
+      <text fg={modeColor()}>{state.mode.toUpperCase()}</text>
+      <text fg="#3b3d57">{"  │  "}</text>
+      <text fg={modelColor()}>{state.model || "—"}</text>
+      <box flexGrow={1} />
+      {state.error && (
+        <text fg="#f7768e">{`⚠ ${state.error.slice(0, 40)}  `}</text>
+      )}
+      <text fg="#565f89">{tokens()}</text>
+    </box>
+  )
 }

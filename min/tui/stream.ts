@@ -33,16 +33,6 @@ interface TextEvent    { content: string }  // /help output dll
 
 // ── Main consumer ─────────────────────────────────────────────────────────────
 
-let _renderer: any = null
-
-export function setRenderer(r: any) {
-  _renderer = r
-}
-
-function redraw() {
-  if (_renderer) _renderer.intermediateRender()
-}
-
 export async function consumeStream(response: Response): Promise<void> {
   const reader = response.body?.getReader()
   if (!reader) throw new Error("Response body is null")
@@ -92,7 +82,6 @@ export async function consumeStream(response: Response): Promise<void> {
           setState("error", null)
         }
         appendToken(assistantIdx, e.content)
-        redraw()
         resetHeartbeat()
         break
       }
@@ -115,7 +104,6 @@ export async function consumeStream(response: Response): Promise<void> {
           finalizeMessage(assistantIdx, pendingEdits.length ? [...pendingEdits] : undefined)
         }
         setState("streaming", false)
-        redraw()
         setState("inputTokens", (prev) => prev + (e.input_tokens ?? 0))
         setState("outputTokens", (prev) => prev + (e.output_tokens ?? 0))
         assistantIdx = -1
@@ -128,7 +116,6 @@ export async function consumeStream(response: Response): Promise<void> {
         const e = data as unknown as ErrorEvent
         setState("error", e.message)
         setState("streaming", false)
-        redraw()
         if (assistantIdx !== -1) {
           finalizeMessage(assistantIdx)
           assistantIdx = -1
@@ -143,14 +130,12 @@ export async function consumeStream(response: Response): Promise<void> {
           e.files as ContextFile[],
           e.total_tokens ?? e.files.reduce((s, f) => s + (f.token_count ?? 0), 0)
         )
-        redraw()
         break
       }
 
       case "model": {
         const e = data as unknown as ModelEvent
         setState("model", e.model)
-        redraw()
         break
       }
 
@@ -162,13 +147,11 @@ export async function consumeStream(response: Response): Promise<void> {
 
       case "clear": {
         clearMessages()
-        redraw()
         break
       }
 
       case "reset": {
         resetAll()
-        redraw()
         break
       }
 
@@ -177,7 +160,6 @@ export async function consumeStream(response: Response): Promise<void> {
         const e = data as unknown as TextEvent
         const idx = pushMessage("assistant", e.content)
         finalizeMessage(idx)
-        redraw()
         break
       }
 
@@ -190,8 +172,7 @@ export async function consumeStream(response: Response): Promise<void> {
           const content = JSON.stringify(data, null, 2)
           const idx = pushMessage("system", content)
           finalizeMessage(idx)
-          redraw()
-        }
+          }
         break
     }
   }
