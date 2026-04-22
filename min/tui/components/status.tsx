@@ -14,7 +14,7 @@ const MODE_COLOR: Record<string, string> = {
 }
 
 export function createStatusBar(renderer: CliRenderer): BoxRenderable {
-  const ctx = renderer as any
+  const ctx = (renderer as any).renderContext
 
   const bar = new BoxRenderable(ctx, {
     width: "100%",

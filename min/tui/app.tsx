@@ -9,7 +9,7 @@ import { createChatView } from "./components/chat.tsx"
 import { createInputBox } from "./components/input.tsx"
 
 export function mountApp(renderer: CliRenderer): void {
-  const ctx = renderer as any
+  const ctx = (renderer as any).renderContext
   const root = renderer.root
 
   // ── Root container: column (status | body | input) ──────────────────────

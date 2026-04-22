@@ -7,7 +7,7 @@ import type { CliRenderer } from "@opentui/core"
 import { state } from "../state.ts"
 
 export function createContextPanel(renderer: CliRenderer): BoxRenderable {
-  const ctx = renderer as any
+  const ctx = (renderer as any).renderContext
 
   // Outer box — fixed width sidebar
   const panel = new BoxRenderable(ctx, {
