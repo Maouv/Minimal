@@ -161,38 +161,41 @@ export function InputBox() {
   return (
     <box width="100%" flexDirection="column" flexShrink={0} backgroundColor={C.bg}>
 
-      {/* Slash menu — muncul di atas input */}
+      {/* Slash menu — gap kiri kanan sama input, antar item ada separator */}
       <Show when={acItems().length > 0}>
-        <box width="100%" flexDirection="column" backgroundColor={C.bg2} flexShrink={0}>
-          <For each={acItems()}>
-            {(item, i) => (
-              <box
-                width="100%"
-                flexDirection="row"
-                height={1}
-                paddingLeft={2}
-                paddingRight={2}
-                backgroundColor={i() === acSelected() ? C.bg3 : C.bg2}
-              >
+        <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingTop={2}>
+          <box width="100%" flexDirection="column" backgroundColor={C.bg2} flexShrink={0}>
+            <For each={acItems()}>
+              {(item, i) => (
+                <box
+                  width="100%"
+                  flexDirection="row"
+                  height={1}
+                  paddingLeft={2}
+                  paddingRight={2}
+                  backgroundColor={i() === acSelected() ? C.bg3 : C.bg2}
+                >
                 <text fg={C.orange} width={16}>{item.label}</text>
                 <text fg={C.gray}>{item.desc}</text>
               </box>
-            )}
-          </For>
+              )}
+            </For>
+          </box>
         </box>
       </Show>
 
-      {/* Input box */}
-      <box
-        width="100%"
-        flexDirection="row"
-        alignItems="center"
-        backgroundColor={C.bg2}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={1}
-        paddingBottom={1}
-      >
+      {/* Input box — gap di kiri kanan bawah pakai padding di wrapper */}
+      <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingBottom={2}>
+        <box
+          width="100%"
+          flexDirection="row"
+          alignItems="center"
+          backgroundColor={C.bg2}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+          paddingBottom={1}
+        >
         <text fg={C.blue} marginRight={1}>✦</text>
         <input
           ref={inputRef}
@@ -207,6 +210,7 @@ export function InputBox() {
           onInput={(val: string) => handleInput(val)}
           onSubmit={(val: string) => handleSubmit(val)}
         />
+        </box>
       </box>
     </box>
   )
