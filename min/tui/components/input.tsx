@@ -43,7 +43,7 @@ export function InputBox() {
   const glyphColor = () => state.streaming ? "#e0af68" : "#7aa2f7"
   let inputRef: InputRenderable | undefined
 
-  // Cache file list agar tidak fetch ulang setiap keystroke
+  // Cache file list — CWD only, lazy load
   let fileCache: string[] = []
   let fileCacheLoaded = false
 
@@ -63,7 +63,11 @@ export function InputBox() {
     const selected = items[acSelected()]
     if (!selected || !inputRef) return
     inputRef.value = selected.value
+    // Jangan tutup autocomplete setelah complete — user mungkin mau lanjut batch
+    // Tapi tutup list dulu, biar user bisa lihat input terupdate
     setAcItems([])
+    // Trigger handleInput ulang agar list muncul lagi sesuai value baru
+    handleInput(selected.value)
   }
 
   useKeyboard((key) => {
@@ -78,7 +82,13 @@ export function InputBox() {
       setAcSelected(s => Math.min(items.length - 1, s + 1))
       return
     }
-    if (key.name === "tab" || key.name === "return") {
+    // Tab: selalu complete (command atau file)
+    // Return: complete hanya saat file mode — command mode biarkan onSubmit handle
+    if (key.name === "tab") {
+      completeSelected()
+      return
+    }
+    if (key.name === "return" && acMode() === "file") {
       completeSelected()
       return
     }
@@ -93,7 +103,6 @@ export function InputBox() {
       completeSelected()
       return
     }
-
     const raw = value.trim()
     if (!raw) return
 
@@ -139,22 +148,41 @@ export function InputBox() {
       return
     }
 
-    // ── File completion: /add, /add -r, /drop + spasi + pattern ───────────
-    const fileCmd = ["/add -r ", "/add ", "/drop "].find(p => value.startsWith(p))
-    if (fileCmd) {
+    // ── /drop: list dari file yang sudah di-add (state.contextFiles) ───────
+    if (value.startsWith("/drop ")) {
+      const pattern = value.slice("/drop ".length).toLowerCase()
+      const matches = state.contextFiles
+        .filter(f => pattern === "" || f.path.toLowerCase().includes(pattern))
+        .slice(0, 20)
+        .map(f => {
+          const parts = f.path.replace(/\\/g, "/").split("/")
+          const label = parts.slice(-2).join("/")
+          return { label, value: "/drop " + f.path }
+        })
+      setAcMode("file")
+      setAcItems(matches)
+      setAcSelected(0)
+      return
+    }
+
+    // ── /add, /add -r: list dari CWD, support batch ────────────────────────
+    const addCmd = ["/add -r ", "/add "].find(p => value.startsWith(p))
+    if (addCmd) {
       await loadFileCache()
-      // Batch support: ambil token terakhir sebagai pattern
-      const afterCmd = value.slice(fileCmd.length)
+      // Batch: pattern = token terakhir setelah spasi
+      const afterCmd = value.slice(addCmd.length)
       const tokens = afterCmd.split(" ")
       const pattern = tokens[tokens.length - 1].toLowerCase()
-      const prefix = value.slice(0, value.length - pattern.length)  // bagian sebelum pattern
+      // prefix = semua sebelum pattern (untuk preserve files yang sudah dipilih)
+      const prefix = value.slice(0, value.length - pattern.length)
       const matches = fileCache
         .filter(f => pattern === "" || f.toLowerCase().includes(pattern))
         .slice(0, 20)
         .map(f => {
           const parts = f.replace(/\\/g, "/").split("/")
           const label = parts.slice(-2).join("/")
-          return { label, value: prefix + f + " " }  // trailing space untuk lanjut batch
+          // trailing space agar user bisa langsung ketik file berikutnya
+          return { label, value: prefix + f + " " }
         })
       setAcMode("file")
       setAcItems(matches)

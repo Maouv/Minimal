@@ -530,3 +530,119 @@ udiff_strategies = [
     (search_and_replace, all_preprocs),
     (dmp_lines_apply, all_preprocs),
 ]
+
+
+# ── find_original_update_blocks ──────────────────────────────────────────────
+# Parse LLM response untuk SEARCH/REPLACE blocks format aider edit-block.
+# Format:
+#   path/to/file.py
+#   <<<<<<< SEARCH
+#   <original code>
+#   =======
+#   <replacement code>
+#   >>>>>>> REPLACE
+
+def find_original_update_blocks(content: str):
+    """
+    Parse content dan yield (filename, original, updated) tuples.
+    Raises ValueError jika format tidak valid.
+    """
+    lines = content.splitlines(keepends=True)
+    i = 0
+    current_file = None
+
+    while i < len(lines):
+        line = lines[i]
+
+        # Detect filename — baris sebelum <<<<<<< SEARCH
+        # Bisa dalam code fence (```python) atau plain
+        stripped = line.strip()
+
+        # Cek apakah ini fence ``` — skip fence markers tapi ambil language/filename
+        if stripped.startswith("```"):
+            inner = stripped[3:].strip()
+            # Kalau ada nama file setelah ```, set sebagai current_file
+            if inner and not inner.lower() in ("python", "js", "ts", "tsx", "go", "rust", "c", "cpp", "java", ""):
+                current_file = inner
+            i += 1
+            continue
+
+        # Detect SEARCH marker
+        if stripped == "<<<<<<< SEARCH" or stripped == "<<<<<<<SEARCH":
+            if current_file is None:
+                # Coba ambil filename dari baris sebelumnya
+                for back in range(i - 1, max(i - 5, -1), -1):
+                    candidate = lines[back].strip()
+                    if candidate and not candidate.startswith("#") and not candidate.startswith("```"):
+                        current_file = candidate
+                        break
+
+            if current_file is None:
+                raise ValueError(f"No filename found before SEARCH block at line {i+1}")
+
+            # Collect SEARCH block
+            i += 1
+            search_lines = []
+            while i < len(lines):
+                l = lines[i]
+                if l.strip() in ("=======", "=======\n"):
+                    break
+                search_lines.append(l)
+                i += 1
+            else:
+                raise ValueError("No ======= found after SEARCH block")
+
+            i += 1  # skip =======
+
+            # Collect REPLACE block
+            replace_lines = []
+            while i < len(lines):
+                l = lines[i]
+                if l.strip().startswith(">>>>>>> REPLACE") or l.strip().startswith(">>>>>>>REPLACE"):
+                    break
+                replace_lines.append(l)
+                i += 1
+            else:
+                raise ValueError("No >>>>>>> REPLACE found")
+
+            i += 1  # skip >>>>>>>
+
+            yield (
+                current_file,
+                "".join(search_lines),
+                "".join(replace_lines),
+            )
+            continue
+
+        # Baris yang bisa jadi filename: tidak kosong, tidak comment, tidak code
+        if stripped and not stripped.startswith("#") and not stripped.startswith("//"):
+            # Hanya set jika terlihat seperti path (ada . atau /)
+            if "." in stripped or "/" in stripped:
+                current_file = stripped
+
+        i += 1
+
+
+# ── replace_most_similar_chunk ───────────────────────────────────────────────
+# Cari search_text di content, replace dengan replace_text.
+# Pakai flexible_search_and_replace dari aider untuk fuzzy match.
+
+def replace_most_similar_chunk(content: str, search: str, replace: str) -> str | None:
+    """
+    Coba replace search dengan replace di content.
+    Return new content kalau berhasil, None kalau tidak ketemu.
+    """
+    if not search.strip():
+        # Empty search = append
+        return content + replace
+
+    # Exact match dulu
+    if search in content:
+        return content.replace(search, replace, 1)
+
+    # Pakai flexible_search_and_replace (dari vendor)
+    result = flexible_search_and_replace(
+        [content, search, replace],
+        strategies=editblock_strategies,
+    )
+    return result if result != content or replace == search else result if search not in content else None

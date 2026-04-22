@@ -96,17 +96,7 @@ async def project_files():
         return results
 
     cwd = Path(os.getcwd())
-    home = Path.home()
-
     files: list[str] = walk(cwd)
-
-    # Add home files only if home is different and not already covered
-    if home.resolve() != cwd.resolve():
-        existing = set(files)
-        for f in walk(home):
-            if f not in existing:
-                files.append(f)
-
     return {"files": files, "cwd": str(cwd)}
 
 
