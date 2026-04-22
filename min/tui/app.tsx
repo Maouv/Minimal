@@ -10,14 +10,14 @@ const LOGO = [
   "▄▄▄▄▄▄▄ ✦ ▄▄▄▄ ✦ ▄▄▄▄▄▄▄ ▄▄▄▄ ▄",
   "█░░█░░█ ▄ █░░█ ▄ █░░█░░█ █░░█ █",
   "█  █  █ █ █  █ █ █  █  █ █▀▀█ █",
-  "▀  ▀  ▀ ▀ ▀  ▀ ▀ ▀  ▀  ▀ ▀  ▀ ▀▀▀",
+  " ▀  ▀  ▀ ▀ ▀  ▀ ▀ ▀  ▀  ▀ ▀  ▀ ▀▀▀",
 ]
 
 function EmptyState() {
   return (
     <box flexGrow={1} flexDirection="column" alignItems="center" justifyContent="center" backgroundColor={C.bg}>
       {LOGO.map(line => (
-        <text fg={C.blue}>{line}</text>
+        <text fg={C.white}>{line}</text>
       ))}
     </box>
   )
