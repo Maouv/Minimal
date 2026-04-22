@@ -108,8 +108,15 @@ export function InputBox() {
       return
     }
 
+    // Reset input langsung
+    if (inputRef) inputRef.value = ""
     setAcItems([])
-    pushMessage("user", raw)
+
+    // Slash commands → jangan masuk chat history, langsung kirim ke backend
+    const isCommand = raw.startsWith("/")
+    if (!isCommand) {
+      pushMessage("user", raw)
+    }
 
     try {
       const response = await sendPrompt(state.sessionId, raw)
@@ -121,7 +128,7 @@ export function InputBox() {
   }
 
   async function handleInput(value: string) {
-    // ── Slash command autocomplete ─────────────────────────────────────────
+    // ── Slash command autocomplete (belum ada spasi) ───────────────────────
     if (value.startsWith("/") && !value.includes(" ")) {
       const matches = SLASH_COMMANDS
         .filter(c => c.cmd.startsWith(value))
@@ -132,19 +139,17 @@ export function InputBox() {
       return
     }
 
-    // ── File completion untuk /add dan /drop ───────────────────────────────
-    // Detect: value dimulai dengan file command + spasi
+    // ── File completion: /add, /add -r, /drop + spasi + pattern ───────────
     const fileCmd = ["/add -r ", "/add ", "/drop "].find(p => value.startsWith(p))
     if (fileCmd) {
       await loadFileCache()
       const pattern = value.slice(fileCmd.length).toLowerCase()
       const matches = fileCache
         .filter(f => pattern === "" || f.toLowerCase().includes(pattern))
-        .slice(0, 20)  // cap 20 biar tidak overflow
+        .slice(0, 20)
         .map(f => {
-          // Tampilkan nama file saja di label, value = full path
           const parts = f.replace(/\\/g, "/").split("/")
-          const label = parts.slice(-2).join("/")  // dir/file.ext
+          const label = parts.slice(-2).join("/")
           return { label, value: fileCmd + f }
         })
       setAcMode("file")

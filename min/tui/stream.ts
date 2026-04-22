@@ -131,6 +131,7 @@ export async function consumeStream(response: Response): Promise<void> {
           e.files as ContextFile[],
           e.total_tokens ?? e.files.reduce((s, f) => s + (f.token_count ?? 0), 0)
         )
+        setState("error", null)
         break
       }
 
@@ -212,5 +213,8 @@ export async function consumeStream(response: Response): Promise<void> {
   } finally {
     stopHeartbeat()
     reader.releaseLock()
+    // Pastikan streaming flag selalu di-reset saat stream berakhir
+    // (command-only responses tidak emit event "done")
+    setState("streaming", false)
   }
 }
