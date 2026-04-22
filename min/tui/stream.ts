@@ -40,7 +40,7 @@ export function setRenderer(r: any) {
 }
 
 function redraw() {
-  if (_renderer) _renderer.root.render()
+  if (_renderer) _renderer.intermediateRender()
 }
 
 export async function consumeStream(response: Response): Promise<void> {
