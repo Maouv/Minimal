@@ -138,9 +138,9 @@ export function InputBox() {
           textColor="#c0caf5"
           focusedBackgroundColor="#1a1b26"
           focusedTextColor="#c0caf5"
-          focus
+          focused
           onInput={(val: string) => handleInput(val)}
-          onEnter={(val: string) => handleSubmit(val)}
+          onSubmit={(val: string) => handleSubmit(val)}
         />
       </box>
 

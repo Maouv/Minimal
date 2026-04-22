@@ -1,6 +1,7 @@
 // stream.ts — SSE consumer, parse semua event dari backend
 
 import {
+  state,
   setState,
   pushMessage,
   appendToken,
@@ -104,8 +105,8 @@ export async function consumeStream(response: Response): Promise<void> {
           finalizeMessage(assistantIdx, pendingEdits.length ? [...pendingEdits] : undefined)
         }
         setState("streaming", false)
-        setState("inputTokens", (prev) => prev + (e.input_tokens ?? 0))
-        setState("outputTokens", (prev) => prev + (e.output_tokens ?? 0))
+        setState("inputTokens", state.inputTokens + (e.input_tokens ?? 0))
+        setState("outputTokens", state.outputTokens + (e.output_tokens ?? 0))
         assistantIdx = -1
         pendingEdits.length = 0
         stopHeartbeat()

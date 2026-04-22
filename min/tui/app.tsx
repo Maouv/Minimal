@@ -1,4 +1,3 @@
-import { render } from "@opentui/solid" // 1. Tambahkan ini di atas
 import { StatusBar } from "./components/status.tsx"
 import { ContextPanel } from "./components/context.tsx"
 import { ChatView } from "./components/chat.tsx"
