@@ -182,19 +182,16 @@ export function InputBox() {
         </box>
       </Show>
 
-      {/* Input box: padding luar bg, inner bg2 */}
+      {/* Input box */}
       <box
         width="100%"
         flexDirection="row"
-        /*alignItems="center"*/
+        alignItems="center"
         backgroundColor={C.bg2}
         paddingLeft={2}
         paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
-        marginRight={1}
-        marginLeft={1}
-        marginBottom={1}
       >
         <text fg={C.blue} marginRight={1}>✦</text>
         <input
