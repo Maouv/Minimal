@@ -9,18 +9,11 @@ from dotenv import load_dotenv
 _CONFIG_DIR = Path.home() / ".minimal"
 _ENV_FILE = _CONFIG_DIR / ".env"
 
-_loaded = False
-
-
 def ensure():
     """Panggil saat startup. Load .env atau jalankan wizard kalau belum ada."""
-    global _loaded
-    if _loaded:
-        return
     if not _ENV_FILE.exists():
         _run_wizard()
-    load_dotenv(_ENV_FILE)
-    _loaded = True
+    load_dotenv(_ENV_FILE, override=True)
 
 
 def _run_wizard():
