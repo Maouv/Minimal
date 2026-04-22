@@ -19,6 +19,33 @@ function EmptyState() {
       {LOGO.map(line => (
         <text fg={C.white}>{line}</text>
       ))}
+      <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingBottom={2} paddingTop={1}>
+        <box
+          width="100%"
+          flexDirection="row"
+          backgroundColor={C.bg2}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+          paddingBottom={1}
+          marginBottom={1}
+        >
+          <text fg={C.blue} marginRight={1}>✦</text>
+          <text fg={C.white} flexWrap="wrap">Can you fix null pointer on context.py line 42?</text>
+        </box>
+        <box
+          width="100%"
+          flexDirection="row"
+          backgroundColor={C.bg2}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+          paddingBottom={1}
+        >
+          <text fg={C.blue} marginRight={1}>✦</text>
+          <text fg={C.white} flexWrap="wrap">/edit-block fix null pointer in context.py</text>
+        </box>
+      </box>
     </box>
   )
 }

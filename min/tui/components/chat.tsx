@@ -73,20 +73,22 @@ function EmptyState() {
 // Box bg2 sama persis dengan input bar: margin 1, glyph ✦, teks
 function UserMsg(props: { content: string }) {
   return (
-    <box
-      width="100%"
-      flexDirection="row"
-      paddingLeft={2}
-      paddingRight={2}
-      paddingTop={1}
-      paddingBottom={1}
-      marginLeft={1}
-      marginRight={1}
-      marginTop={1}
-      backgroundColor={C.bg2}
-    >
-      <text fg={C.blue} marginRight={1}>✦</text>
-      <text fg={C.white} flexGrow={1} flexWrap="wrap">{props.content}</text>
+    <box width="100%" backgroundColor={C.bg} paddingLeft={1} paddingRight={3}>
+      <box
+        width="100%"
+        flexDirection="row"
+        paddingLeft={1}
+        paddingTop={1}
+        paddingRight={3}
+        paddingBottom={1}
+        marginLeft={1}
+        marginRight={1}
+        marginTop={1}
+        backgroundColor={C.bg2}
+      >
+        <text fg={C.blue} marginRight={1}>✦</text>
+        <text fg={C.white} flexGrow={1} flexWrap="wrap">{props.content}</text>
+      </box>
     </box>
   )
 }
@@ -99,8 +101,8 @@ function AiMsg(props: { msg: Message }) {
     <box
       width="100%"
       flexDirection="column"
-      paddingLeft={2}
-      paddingRight={2}
+      paddingLeft={3}
+      paddingRight={3}
       paddingTop={1}
       paddingBottom={1}
       backgroundColor={C.bg}
