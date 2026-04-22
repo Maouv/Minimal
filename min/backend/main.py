@@ -154,7 +154,7 @@ async def context_add(req: ContextAddRequest):
     err = await s.context.add(req.path, readonly=req.readonly)
     if err:
         raise HTTPException(status_code=400, detail=err)
-    return {"files": [f.model_dump() for f in s.context.ls()]}
+    return {"files": [f.model_dump(mode="json") for f in s.context.ls()]}
 
 
 @app.post("/context/drop")
@@ -165,7 +165,7 @@ async def context_drop(req: ContextDropRequest):
     err = s.context.drop(req.path)
     if err:
         raise HTTPException(status_code=400, detail=err)
-    return {"files": [f.model_dump() for f in s.context.ls()]}
+    return {"files": [f.model_dump(mode="json") for f in s.context.ls()]}
 
 
 @app.get("/context")
@@ -174,7 +174,7 @@ async def context_list(session_id: str):
     if not s:
         raise HTTPException(status_code=404, detail="Session not found")
     return {
-        "files": [f.model_dump() for f in s.context.ls()],
+        "files": [f.model_dump(mode="json") for f in s.context.ls()],
         "total_tokens": s.context.total_tokens(),
     }
 
@@ -210,7 +210,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
             yield sse("error", {"message": err})
         else:
             files = s.context.ls()
-            yield sse("context", {"files": [f.model_dump() for f in files]})
+            yield sse("context", {"files": [f.model_dump(mode="json") for f in files]})
             await s.write_command(raw_input)
         return
 
@@ -220,14 +220,14 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
             yield sse("error", {"message": err})
         else:
             files = s.context.ls()
-            yield sse("context", {"files": [f.model_dump() for f in files]})
+            yield sse("context", {"files": [f.model_dump(mode="json") for f in files]})
             await s.write_command(raw_input)
         return
 
     if command.kind == "ls":
         files = s.context.ls()
         yield sse("context", {
-            "files": [f.model_dump() for f in files],
+            "files": [f.model_dump(mode="json") for f in files],
             "total_tokens": s.context.total_tokens(),
         })
         return
