@@ -16,8 +16,4 @@ export function App() {
   )
 }
 
-// 2. Tambahkan fungsi ini agar index.ts bisa memanggilnya
-export function mountApp(renderer: any) {
-  return render(() => <App />, renderer)
-}
 
