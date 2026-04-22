@@ -6,7 +6,7 @@ import { BoxRenderable, TextRenderable, InputRenderable } from "@opentui/core"
 import type { CliRenderer } from "@opentui/core"
 import { state, setState, pushMessage } from "../state.ts"
 import { sendPrompt, abortSession, contextAdd, contextDrop } from "../client.ts"
-import { consumeStream } from "../stream.ts"
+import { consumeStream, setRenderer } from "../stream.ts"
 
 // ── Slash commands ─────────────────────────────────────────────────────────────
 
@@ -195,6 +195,9 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
       setState("streaming", false)
     }
   }
+
+  // Pass renderer to stream for manual redraw
+  setRenderer(renderer)
 
   // Auto-focus input on mount
   input.focus()
