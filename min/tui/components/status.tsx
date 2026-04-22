@@ -14,9 +14,7 @@ const MODE_COLOR: Record<string, string> = {
 }
 
 export function createStatusBar(renderer: CliRenderer): BoxRenderable {
-  const ctx = renderer as any as import("@opentui/core").CliRenderer
-
-  const bar = new BoxRenderable(ctx, {
+    const bar = new BoxRenderable(renderer, {
     width: "100%",
     height: 1,
     flexDirection: "row",
@@ -25,25 +23,25 @@ export function createStatusBar(renderer: CliRenderer): BoxRenderable {
     paddingX: 1,
   })
 
-  const modeText = new TextRenderable(ctx, {
+  const modeText = new TextRenderable(renderer, {
     content: state.mode.toUpperCase(),
     fg: MODE_COLOR[state.mode] ?? "#c0caf5",
     flexShrink: 0,
   })
 
-  const sep1 = new TextRenderable(ctx, { content: "  │  ", fg: "#3b3d57", flexShrink: 0 })
+  const sep1 = new TextRenderable(renderer, { content: "  │  ", fg: "#3b3d57", flexShrink: 0 })
 
-  const modelText = new TextRenderable(ctx, {
+  const modelText = new TextRenderable(renderer, {
     content: state.model || "—",
     fg: "#565f89",
     flexShrink: 0,
   })
 
-  const spacer = new BoxRenderable(ctx, { flexGrow: 1 })
+  const spacer = new BoxRenderable(renderer, { flexGrow: 1 })
 
-  const errText = new TextRenderable(ctx, { content: "", fg: "#f7768e", flexShrink: 0, visible: false })
+  const errText = new TextRenderable(renderer, { content: "", fg: "#f7768e", flexShrink: 0, visible: false })
 
-  const tokenText = new TextRenderable(ctx, {
+  const tokenText = new TextRenderable(renderer, {
     content: "",
     fg: "#565f89",
     flexShrink: 0,

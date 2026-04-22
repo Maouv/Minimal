@@ -9,11 +9,10 @@ import { createChatView } from "./components/chat.tsx"
 import { createInputBox } from "./components/input.tsx"
 
 export function mountApp(renderer: CliRenderer): void {
-  const ctx = renderer as any as import("@opentui/core").CliRenderer
-  const root = renderer.root
+    const root = renderer.root
 
   // ── Root container: column (status | body | input) ──────────────────────
-  const rootBox = new BoxRenderable(ctx, {
+  const rootBox = new BoxRenderable(renderer, {
     width: "100%",
     height: "100%",
     flexDirection: "column",
@@ -24,7 +23,7 @@ export function mountApp(renderer: CliRenderer): void {
   const statusBar = createStatusBar(renderer)
 
   // 2. Body: row = [context panel | chat view]
-  const body = new BoxRenderable(ctx, {
+  const body = new BoxRenderable(renderer, {
     flexGrow: 1,
     flexDirection: "row",
     overflow: "hidden",

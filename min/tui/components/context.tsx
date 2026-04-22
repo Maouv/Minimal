@@ -7,10 +7,8 @@ import type { CliRenderer } from "@opentui/core"
 import { state } from "../state.ts"
 
 export function createContextPanel(renderer: CliRenderer): BoxRenderable {
-  const ctx = renderer as any as import("@opentui/core").CliRenderer
-
-  // Outer box — fixed width sidebar
-  const panel = new BoxRenderable(ctx, {
+    // Outer box — fixed width sidebar
+  const panel = new BoxRenderable(renderer, {
     width: 28,
     flexGrow: 0,
     flexShrink: 0,
@@ -21,7 +19,7 @@ export function createContextPanel(renderer: CliRenderer): BoxRenderable {
   })
 
   // Header
-  const header = new TextRenderable(ctx, {
+  const header = new TextRenderable(renderer, {
     content: "context",
     fg: "#565f89",
     height: 1,
@@ -29,7 +27,7 @@ export function createContextPanel(renderer: CliRenderer): BoxRenderable {
   })
 
   // Scrollable file list
-  const scroll = new ScrollBoxRenderable(ctx, {
+  const scroll = new ScrollBoxRenderable(renderer, {
     flexGrow: 1,
     scrollY: true,
     scrollX: false,
@@ -37,7 +35,7 @@ export function createContextPanel(renderer: CliRenderer): BoxRenderable {
   })
 
   // Content box inside scroll — gets rebuilt on state change
-  const fileList = new BoxRenderable(ctx, {
+  const fileList = new BoxRenderable(renderer, {
     width: "100%",
     flexDirection: "column",
     paddingX: 1,
@@ -60,7 +58,7 @@ export function createContextPanel(renderer: CliRenderer): BoxRenderable {
     rows = []
 
     if (files.length === 0) {
-      const empty = new TextRenderable(ctx, {
+      const empty = new TextRenderable(renderer, {
         content: "no files",
         fg: "#3b3d57",
         height: 1,
@@ -72,7 +70,7 @@ export function createContextPanel(renderer: CliRenderer): BoxRenderable {
 
     for (const f of files) {
       const label = formatFile(f.path, f.readonly, f.token_count)
-      const row = new TextRenderable(ctx, {
+      const row = new TextRenderable(renderer, {
         content: label,
         fg: f.readonly ? "#565f89" : "#a9b1d6",
         height: 1,
@@ -83,7 +81,7 @@ export function createContextPanel(renderer: CliRenderer): BoxRenderable {
   })
 
   // Token total footer
-  const footer = new TextRenderable(ctx, {
+  const footer = new TextRenderable(renderer, {
     content: "",
     fg: "#565f89",
     height: 1,

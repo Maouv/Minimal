@@ -23,10 +23,8 @@ const SLASH_COMMANDS = [
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export function createInputBox(renderer: CliRenderer): BoxRenderable {
-  const ctx = renderer as any as import("@opentui/core").CliRenderer
-
-  // Outer: input area at bottom
-  const wrapper = new BoxRenderable(ctx, {
+    // Outer: input area at bottom
+  const wrapper = new BoxRenderable(renderer, {
     width: "100%",
     flexDirection: "column",
     flexShrink: 0,
@@ -36,7 +34,7 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
   })
 
   // Autocomplete overlay — shown above input when typing /
-  const autocomplete = new BoxRenderable(ctx, {
+  const autocomplete = new BoxRenderable(renderer, {
     width: "100%",
     flexDirection: "column",
     backgroundColor: "#1e2030",
@@ -46,7 +44,7 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
   })
 
   // Input row: prompt glyph + textarea
-  const inputRow = new BoxRenderable(ctx, {
+  const inputRow = new BoxRenderable(renderer, {
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
@@ -55,7 +53,7 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
   })
 
   // Prompt glyph
-  const glyph = new TextRenderable(ctx, {
+  const glyph = new TextRenderable(renderer, {
     content: "›",
     fg: "#7aa2f7",
     flexShrink: 0,
@@ -64,7 +62,7 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
   })
 
   // Single-line input
-  const input = new InputRenderable(ctx, {
+  const input = new InputRenderable(renderer, {
     flexGrow: 1,
     placeholder: "ask or /command…",
     placeholderColor: "#3b3d57",
@@ -99,15 +97,15 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
     autocomplete.visible = items.length > 0
 
     items.forEach((item, i) => {
-      const row = new BoxRenderable(ctx, {
+      const row = new BoxRenderable(renderer, {
         width: "100%",
         flexDirection: "row",
         height: 1,
         paddingX: 2,
         backgroundColor: i === acSelected() ? "#2a2b40" : "#1e2030",
       })
-      const cmdT = new TextRenderable(ctx, { content: item.cmd, fg: "#7aa2f7", flexShrink: 0, marginRight: 2 })
-      const descT = new TextRenderable(ctx, { content: item.desc, fg: "#565f89", flexGrow: 1 })
+      const cmdT = new TextRenderable(renderer, { content: item.cmd, fg: "#7aa2f7", flexShrink: 0, marginRight: 2 })
+      const descT = new TextRenderable(renderer, { content: item.desc, fg: "#565f89", flexGrow: 1 })
       row.add(cmdT)
       row.add(descT)
       autocomplete.add(row)

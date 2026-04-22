@@ -18,9 +18,7 @@ interface MessageRow {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export function createChatView(renderer: CliRenderer): ScrollBoxRenderable {
-  const ctx = renderer as any as import("@opentui/core").CliRenderer
-
-  const scroll = new ScrollBoxRenderable(ctx, {
+    const scroll = new ScrollBoxRenderable(renderer, {
     flexGrow: 1,
     scrollY: true,
     scrollX: false,
@@ -38,7 +36,7 @@ export function createChatView(renderer: CliRenderer): ScrollBoxRenderable {
 
     for (let i = rows.length; i < newCount; i++) {
       const msg = state.messages[i]
-      const row = buildMessageRow(ctx, msg, i)
+      const row = buildMessageRow(renderer, msg, i)
       scroll.content.add(row.container)
       rows.push(row)
     }
@@ -68,7 +66,7 @@ export function createChatView(renderer: CliRenderer): ScrollBoxRenderable {
       // Kalau done + ada edits → render diffs (sekali saja)
       if (msg.done && msg.edits && row.diffBoxes.length === 0) {
         for (const edit of msg.edits) {
-          const diffBox = new DiffRenderable(ctx, {
+          const diffBox = new DiffRenderable(renderer, {
             diff: edit.diff,
             width: "100%",
             view: "unified",
@@ -91,7 +89,7 @@ function buildMessageRow(ctx: any, msg: Message, idx: number): MessageRow {
   const isSystem = msg.role === "system"
 
   // Container per message
-  const container = new BoxRenderable(ctx, {
+  const container = new BoxRenderable(renderer, {
     width: "100%",
     flexDirection: "column",
     paddingX: 2,
@@ -102,7 +100,7 @@ function buildMessageRow(ctx: any, msg: Message, idx: number): MessageRow {
   })
 
   // Role label
-  const roleLabel = new TextRenderable(ctx, {
+  const roleLabel = new TextRenderable(renderer, {
     content: rolePrefix(msg.role),
     fg: roleFg(msg.role),
     height: 1,
@@ -110,7 +108,7 @@ function buildMessageRow(ctx: any, msg: Message, idx: number): MessageRow {
   })
 
   // Message body — mutable, gets updated via streaming
-  const bodyText = new TextRenderable(ctx, {
+  const bodyText = new TextRenderable(renderer, {
     content: msg.content,
     fg: isSystem ? "#565f89" : "#c0caf5",
     width: "100%",
