@@ -72,8 +72,10 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
     textColor: "#c0caf5",
     focusedBackgroundColor: "#1a1b26",
     focusedTextColor: "#c0caf5",
-    onSubmit: () => handleSubmit(),
   })
+
+  input.on("enter", () => handleSubmit())
+  input.on("return", () => handleSubmit())
 
   inputRow.add(glyph)
   inputRow.add(input)
