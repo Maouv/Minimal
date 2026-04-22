@@ -26,14 +26,23 @@ def ensure():
 def _run_wizard():
     """Setup wizard — tanya 3 field, simpan ke ~/.minimal/.env."""
     print("\nNo config found. Quick setup:\n")
+    print("(Ctrl+C to abort)\n")
 
-    default_url = "https://openrouter.ai/api/v1"
-    base_url = input(f"Provider base URL? (enter untuk openrouter): ").strip()
-    if not base_url:
-        base_url = default_url
+    try:
+        default_url = "https://openrouter.ai/api/v1"
+        base_url = input("Provider base URL? (enter untuk openrouter): ").strip()
+        if not base_url:
+            base_url = default_url
 
-    api_key = input("API Key: ").strip()
-    model = input("Model: ").strip()
+        api_key = input("API Key: ").strip()
+        model = input("Model: ").strip()
+    except KeyboardInterrupt:
+        print("\n\nAborted.")
+        raise SystemExit(0)
+
+    if not api_key or not model:
+        print("API key and model are required.")
+        raise SystemExit(1)
 
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     _ENV_FILE.write_text(
