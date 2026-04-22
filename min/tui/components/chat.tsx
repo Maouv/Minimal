@@ -19,6 +19,7 @@ function fileExtension(path: string): string {
 }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
+// Center: logo ✦ besar + "minimal", lalu 2 history preview box
 function EmptyState() {
   return (
     <box
@@ -29,9 +30,40 @@ function EmptyState() {
       justifyContent="center"
       backgroundColor={C.bg}
     >
-      <text fg={C.blue}>✦  minimal</text>
-      <box height={2} />
-      <text fg={C.gray}>ask anything or type / for commands</text>
+      {/* Logo + brand */}
+      <box flexDirection="row" alignItems="center" marginBottom={3}>
+        <text fg={C.blue}>{"✦  "}</text>
+        <text fg={C.white}>minimal</text>
+      </box>
+
+      {/* History preview items — sama style dengan user message */}
+      <box flexDirection="column" width={50}>
+        <box
+          width="100%"
+          flexDirection="row"
+          backgroundColor={C.bg2}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+          paddingBottom={1}
+          marginBottom={1}
+        >
+          <text fg={C.blue} marginRight={1}>✦</text>
+          <text fg={C.white} flexWrap="wrap">gimana cara fix null pointer di context.py line 42?</text>
+        </box>
+        <box
+          width="100%"
+          flexDirection="row"
+          backgroundColor={C.bg2}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+          paddingBottom={1}
+        >
+          <text fg={C.blue} marginRight={1}>✦</text>
+          <text fg={C.gray} flexWrap="wrap">/edit-block fix the null pointer in context.py</text>
+        </box>
+      </box>
     </box>
   )
 }

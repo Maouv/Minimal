@@ -163,12 +163,7 @@ export function InputBox() {
 
       {/* Slash menu — muncul di atas input */}
       <Show when={acItems().length > 0}>
-        <box
-          width="100%"
-          flexDirection="column"
-          backgroundColor={C.bg2}
-          flexShrink={0}
-        >
+        <box width="100%" flexDirection="column" backgroundColor={C.bg2} flexShrink={0}>
           <For each={acItems()}>
             {(item, i) => (
               <box
@@ -179,9 +174,7 @@ export function InputBox() {
                 paddingRight={2}
                 backgroundColor={i() === acSelected() ? C.bg3 : C.bg2}
               >
-                {/* cmd */}
                 <text fg={C.orange} width={16}>{item.label}</text>
-                {/* desc */}
                 <text fg={C.gray}>{item.desc}</text>
               </box>
             )}
@@ -189,7 +182,7 @@ export function InputBox() {
         </box>
       </Show>
 
-      {/* Input box: ✦ + input field */}
+      {/* Input box: padding luar bg, inner bg2 */}
       <box
         width="100%"
         flexDirection="row"
@@ -199,8 +192,6 @@ export function InputBox() {
         paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
-        marginLeft={1}
-        marginRight={1}
       >
         <text fg={C.blue} marginRight={1}>✦</text>
         <input
