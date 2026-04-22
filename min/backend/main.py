@@ -205,13 +205,21 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     # --- Non-LLM commands ---
 
     if command.kind == "add":
-        err = await s.context.add(command.args, readonly=command.readonly)
-        if err:
-            yield sse("error", {"message": err})
-        else:
-            files = s.context.ls()
-            yield sse("context", {"files": [f.model_dump(mode="json") for f in files]})
-            await s.write_command(raw_input)
+        # Support batch: /add file1 file2 file3 (spasi-separated)
+        paths = command.args.split() if command.args else []
+        if not paths:
+            yield sse("error", {"message": "Usage: /add <file> [file2 ...]"})
+            return
+        errors = []
+        for path in paths:
+            err = await s.context.add(path, readonly=command.readonly)
+            if err:
+                errors.append(f"{path}: {err}")
+        if errors:
+            yield sse("error", {"message": "; ".join(errors)})
+        files = s.context.ls()
+        yield sse("context", {"files": [f.model_dump(mode="json") for f in files]})
+        await s.write_command(raw_input)
         return
 
     if command.kind == "drop":
@@ -222,14 +230,6 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
             files = s.context.ls()
             yield sse("context", {"files": [f.model_dump(mode="json") for f in files]})
             await s.write_command(raw_input)
-        return
-
-    if command.kind == "ls":
-        files = s.context.ls()
-        yield sse("context", {
-            "files": [f.model_dump(mode="json") for f in files],
-            "total_tokens": s.context.total_tokens(),
-        })
         return
 
     if command.kind == "clear":
@@ -253,6 +253,11 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     if command.kind == "model":
         s.model = config.resolve_model(command.args)
         yield sse("model", {"model": s.model})
+        return
+
+    if command.kind == "ask":
+        s.mode = "ask"
+        yield sse("mode", {"mode": "ask"})
         return
 
     if command.kind == "help":
@@ -307,8 +312,25 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     # --- LLM calls (prompt + edit) ---
 
     is_edit = command.kind == "edit"
+
+    if is_edit:
+        if command.args:
+            # /edit-block <prompt> — sekali pakai, mode tidak berubah
+            effective_mode = command.edit_mode
+        else:
+            # /edit-block tanpa args — switch mode permanen
+            s.mode = f"edit-{command.edit_mode}"
+            yield sse("mode", {"mode": s.mode})
+            return
+    else:
+        effective_mode = None
+        if s.mode != "ask" and command.kind == "prompt":
+            # Mode permanen aktif — pakai mode itu
+            effective_mode = s.mode.replace("edit-", "")
+            is_edit = True
+
     system_prompt = (
-        edit_system_prompt(command.edit_mode, s.context.get_editable())
+        edit_system_prompt(effective_mode, s.context.get_editable())
         if is_edit
         else ask_system_prompt(s.context.get_all())
     )
@@ -352,7 +374,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         # apply edit kalau mode edit
         if is_edit and clean_response:
             edit_results = coder.apply_edits(
-                clean_response, s.context.get_editable(), command.edit_mode
+                clean_response, s.context.get_editable(), effective_mode
             )
 
             for result in edit_results:

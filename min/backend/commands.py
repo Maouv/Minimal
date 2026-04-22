@@ -14,8 +14,9 @@ EDIT_COMMANDS = {
 }
 
 SLASH_COMMANDS = [
-    "/add", "/drop", "/ls",
+    "/add", "/add -r", "/drop",
     "/edit-block", "/edit-udiff", "/edit-whole",
+    "/ask",
     "/clear", "/reset",
     "/undo", "/diff", "/commit",
     "/run", "/tokens", "/model",
@@ -26,8 +27,8 @@ SLASH_COMMANDS = [
 @dataclass
 class Command:
     kind: Literal[
-        "add", "drop", "ls",
-        "edit",
+        "add", "drop",
+        "edit", "ask",
         "clear", "reset",
         "undo", "diff", "commit",
         "run", "tokens", "model",
@@ -58,6 +59,10 @@ def parse(raw: str) -> Command:
     if cmd in EDIT_COMMANDS:
         return Command(kind="edit", args=args, edit_mode=EDIT_COMMANDS[cmd])
 
+    # ask — kembali ke mode normal
+    if cmd == "/ask":
+        return Command(kind="ask")
+
     # context commands
     if cmd == "/add":
         readonly = False
@@ -68,9 +73,6 @@ def parse(raw: str) -> Command:
 
     if cmd == "/drop":
         return Command(kind="drop", args=args)
-
-    if cmd == "/ls":
-        return Command(kind="ls")
 
     # session commands
     if cmd == "/clear":
@@ -106,13 +108,13 @@ def parse(raw: str) -> Command:
 
 HELP_TEXT = """
 Commands:
-  /add <file>          add file to context (editable)
-  /add -r <file>       add file as read-only
+  /add <f1> [f2 ...]   add files to context (editable)
+  /add -r <f1> [f2 ...]  add files as read-only
   /drop <file>         remove file from context
-  /ls                  list context files + token count
-  /edit-block <prompt> edit with SEARCH/REPLACE blocks
-  /edit-udiff <prompt> edit with unified diff
-  /edit-whole <prompt> rewrite entire file
+  /edit-block [prompt] SEARCH/REPLACE mode (permanent if no prompt)
+  /edit-udiff [prompt] unified diff mode (permanent if no prompt)
+  /edit-whole [prompt] whole-file mode (permanent if no prompt)
+  /ask                 return to ask mode
   /undo                rollback last edit
   /diff                show last diff
   /commit [msg]        git commit changes

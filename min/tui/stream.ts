@@ -141,6 +141,12 @@ export async function consumeStream(response: Response): Promise<void> {
         break
       }
 
+      case "mode": {
+        const e = data as unknown as { mode: string }
+        setState("mode", e.mode as any)
+        break
+      }
+
       case "tokens": {
         const e = data as unknown as TokensEvent
         setState("totalTokens", e.context_tokens)

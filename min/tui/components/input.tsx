@@ -7,13 +7,13 @@ import { sendPrompt, abortSession, listProjectFiles } from "../client.ts"
 import { consumeStream } from "../stream.ts"
 
 const SLASH_COMMANDS = [
-  { cmd: "/add",        desc: "add file to context" },
-  { cmd: "/add -r",     desc: "add file as read-only" },
+  { cmd: "/add",        desc: "add file(s) to context" },
+  { cmd: "/add -r",     desc: "add file(s) as read-only" },
   { cmd: "/drop",       desc: "remove file from context" },
-  { cmd: "/ls",         desc: "list context files" },
-  { cmd: "/edit-block", desc: "edit with SEARCH/REPLACE" },
-  { cmd: "/edit-udiff", desc: "edit with unified diff" },
-  { cmd: "/edit-whole", desc: "rewrite entire file" },
+  { cmd: "/edit-block", desc: "SEARCH/REPLACE mode [prompt]" },
+  { cmd: "/edit-udiff", desc: "unified diff mode [prompt]" },
+  { cmd: "/edit-whole", desc: "whole-file mode [prompt]" },
+  { cmd: "/ask",        desc: "return to ask mode" },
   { cmd: "/undo",       desc: "undo last edit" },
   { cmd: "/diff",       desc: "show last diff" },
   { cmd: "/clear",      desc: "clear messages" },
@@ -143,14 +143,18 @@ export function InputBox() {
     const fileCmd = ["/add -r ", "/add ", "/drop "].find(p => value.startsWith(p))
     if (fileCmd) {
       await loadFileCache()
-      const pattern = value.slice(fileCmd.length).toLowerCase()
+      // Batch support: ambil token terakhir sebagai pattern
+      const afterCmd = value.slice(fileCmd.length)
+      const tokens = afterCmd.split(" ")
+      const pattern = tokens[tokens.length - 1].toLowerCase()
+      const prefix = value.slice(0, value.length - pattern.length)  // bagian sebelum pattern
       const matches = fileCache
         .filter(f => pattern === "" || f.toLowerCase().includes(pattern))
         .slice(0, 20)
         .map(f => {
           const parts = f.replace(/\\/g, "/").split("/")
           const label = parts.slice(-2).join("/")
-          return { label, value: fileCmd + f }
+          return { label, value: prefix + f + " " }  // trailing space untuk lanjut batch
         })
       setAcMode("file")
       setAcItems(matches)
