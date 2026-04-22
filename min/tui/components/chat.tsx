@@ -37,7 +37,7 @@ function EmptyState() {
 }
 
 // ── User message ──────────────────────────────────────────────────────────────
-// Sama persis dengan style input bar: glyph ✦ + teks
+// Box bg2 sama persis dengan input bar: margin 1, glyph ✦, teks
 function UserMsg(props: { content: string }) {
   return (
     <box
@@ -47,7 +47,10 @@ function UserMsg(props: { content: string }) {
       paddingRight={2}
       paddingTop={1}
       paddingBottom={1}
-      backgroundColor={C.bg}
+      marginLeft={1}
+      marginRight={1}
+      marginTop={1}
+      backgroundColor={C.bg2}
     >
       <text fg={C.blue} marginRight={1}>✦</text>
       <text fg={C.white} flexGrow={1} flexWrap="wrap">{props.content}</text>
@@ -81,43 +84,55 @@ function AiMsg(props: { msg: Message }) {
       {/* Diff blocks */}
       <Show when={props.msg.done && props.msg.edits && props.msg.edits!.length > 0}>
         <For each={props.msg.edits}>
-          {(edit) => (
-            <box width="100%" flexDirection="column" marginTop={1}>
-              {/* diff-top bar: filename · +N -N · Applied */}
+          {(edit) => {
+            const added   = (edit.diff.match(/^\+[^+]/mg) ?? []).length
+            const removed = (edit.diff.match(/^-[^-]/mg) ?? []).length
+            return (
               <box
                 width="100%"
-                flexDirection="row"
-                height={1}
-                paddingLeft={1}
-                paddingRight={1}
-                backgroundColor={C.bg2}
+                flexDirection="column"
+                marginTop={1}
+                marginLeft={1}
+                marginRight={1}
+                border
+                borderColor={C.border}
               >
-                <text fg={C.cyan}>{edit.file}</text>
-                <box flexGrow={1} />
-                <text fg={C.gray}>
-                  {edit.success ? `Applied to ${edit.file}` : (edit.error ?? "failed")}
-                </text>
-              </box>
-
-              {/* diff body */}
-              <Show when={edit.diff}>
-                <diff
-                  diff={edit.diff}
+                {/* diff-top */}
+                <box
                   width="100%"
-                  view="unified"
-                  filetype={fileExtension(edit.file)}
-                  syntaxStyle={syntaxStyle}
-                  showLineNumbers={false}
-                  fg={C.white}
-                  addedBg="#0d1f00"
-                  removedBg="#1f0009"
-                  contextBg={C.bg}
-                  addedSignColor={C.gdim}
-                  removedSignColor={C.pink}
-                />
-              </Show>
-            </box>
-          )}
+                  flexDirection="row"
+                  height={1}
+                  paddingLeft={1}
+                  paddingRight={1}
+                  backgroundColor={C.bg2}
+                >
+                  <text fg={C.cyan}>{edit.file}</text>
+                  <text fg={C.gray2}>{`  +${added} -${removed}`}</text>
+                  <box flexGrow={1} />
+                  <text fg={C.gray}>
+                    {edit.success ? `Applied to ${edit.file}` : (edit.error ?? "failed")}
+                  </text>
+                </box>
+                {/* diff body */}
+                <Show when={edit.diff}>
+                  <diff
+                    diff={edit.diff}
+                    width="100%"
+                    view="unified"
+                    filetype={fileExtension(edit.file)}
+                    syntaxStyle={syntaxStyle}
+                    showLineNumbers={false}
+                    fg={C.white}
+                    addedBg="#0d1a00"
+                    removedBg="#1a0009"
+                    contextBg={C.bg}
+                    addedSignColor={C.gdim}
+                    removedSignColor={C.pink}
+                  />
+                </Show>
+              </box>
+            )
+          }}
         </For>
       </Show>
     </box>

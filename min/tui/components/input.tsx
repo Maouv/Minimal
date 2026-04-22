@@ -192,39 +192,30 @@ export function InputBox() {
       {/* Input box: ✦ + input field */}
       <box
         width="100%"
-        flexDirection="column"
+        flexDirection="row"
+        alignItems="center"
         backgroundColor={C.bg2}
         paddingLeft={2}
         paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
+        marginLeft={1}
+        marginRight={1}
       >
-        {/* Row: glyph + input */}
-        <box width="100%" flexDirection="row" alignItems="center">
-          <text fg={C.blue} marginRight={1}>✦</text>
-          <input
-            ref={inputRef}
-            flexGrow={1}
-            placeholder='Ask anything... "What is the tech stack of this project?"'
-            placeholderColor={C.gray2}
-            backgroundColor={C.bg2}
-            textColor={C.white}
-            focusedBackgroundColor={C.bg2}
-            focusedTextColor={C.white}
-            focused
-            onInput={(val: string) => handleInput(val)}
-            onSubmit={(val: string) => handleSubmit(val)}
-          />
-        </box>
-
-        {/* input-meta: Ask · glm-5 · minimal */}
-        <box width="100%" flexDirection="row" height={1} marginTop={1}>
-          <text fg={modeColor()}>{modeLabel()}</text>
-          <text fg={C.gray2}>{" · "}</text>
-          <text fg={C.gray}>{state.model || "—"}</text>
-          <text fg={C.gray2}>{" · "}</text>
-          <text fg={C.gray3}>minimal</text>
-        </box>
+        <text fg={C.blue} marginRight={1}>✦</text>
+        <input
+          ref={inputRef}
+          flexGrow={1}
+          placeholder='Ask anything... "What is the tech stack of this project?"'
+          placeholderColor={C.gray2}
+          backgroundColor={C.bg2}
+          textColor={C.white}
+          focusedBackgroundColor={C.bg2}
+          focusedTextColor={C.white}
+          focused
+          onInput={(val: string) => handleInput(val)}
+          onSubmit={(val: string) => handleSubmit(val)}
+        />
       </box>
 
     </box>
