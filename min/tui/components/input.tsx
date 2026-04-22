@@ -168,6 +168,7 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
   // ── Submit handler ─────────────────────────────────────────────────────────
   async function handleSubmit() {
     const raw = input.value.trim()
+    process.stderr.write(`[debug] handleSubmit called, raw="${raw}"\n`)
     if (!raw) return
     if (state.streaming) {
       // Ctrl+C style abort
