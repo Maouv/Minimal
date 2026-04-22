@@ -1,6 +1,7 @@
 // input.tsx — prompt input + slash autocomplete
 import { createSignal, For, Show } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
+import type { InputRenderable } from "@opentui/core"
 import { state, setState, pushMessage } from "../state.ts"
 import { sendPrompt, abortSession } from "../client.ts"
 import { consumeStream } from "../stream.ts"
@@ -29,6 +30,15 @@ export function InputBox() {
   const [acSelected, setAcSelected] = createSignal(0)
   const glyphContent = () => state.streaming ? "⊙" : "✦"
   const glyphColor = () => state.streaming ? "#e0af68" : "#7aa2f7"
+  let inputRef: InputRenderable | undefined
+
+  function completeSelected() {
+    const items = acItems()
+    const selected = items[acSelected()]
+    if (!selected || !inputRef) return
+    inputRef.value = selected.cmd + " "
+    setAcItems([])
+  }
 
   // Handle autocomplete keyboard navigation
   useKeyboard((key) => {
@@ -43,6 +53,10 @@ export function InputBox() {
       setAcSelected(s => Math.min(items.length - 1, s + 1))
       return
     }
+    if (key.name === "tab" || key.name === "return") {
+      completeSelected()
+      return
+    }
     if (key.name === "escape") {
       setAcItems([])
       return
@@ -50,6 +64,12 @@ export function InputBox() {
   })
 
   async function handleSubmit(value: string) {
+    // Kalau autocomplete aktif, return = complete, bukan submit
+    if (acItems().length > 0) {
+      completeSelected()
+      return
+    }
+
     const raw = value.trim()
     if (!raw) return
 
@@ -131,6 +151,7 @@ export function InputBox() {
       >
         <text fg={glyphColor()} marginRight={1}>{glyphContent()}</text>
         <input
+          ref={inputRef}
           flexGrow={1}
           placeholder="ask or /command…"
           placeholderColor="#3b3d57"
