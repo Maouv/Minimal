@@ -178,20 +178,23 @@ def _apply_udiff(response: str, files: dict[str, str]) -> list[EditResult]:
 
 
 def _apply_whole(response: str, files: dict[str, str]) -> list[EditResult]:
-    """Whole file rewrite — AI output seluruh isi file baru."""
+    """Whole file rewrite — pakai parse_whole_edits() dari vendor/wholefile.py."""
+    from vendor.wholefile import parse_whole_edits
     import re
+
+    chat_files = list(files.keys())
     results = []
 
-    # format: ```python\npath/to/file\n<content>\n```
-    # atau: filename di baris sebelum code block
-    pattern = r"(?:^|\n)([^\n`]+)\n```[^\n]*\n(.*?)```"
-    matches = re.findall(pattern, response, re.DOTALL)
+    try:
+        edits = parse_whole_edits(response, chat_files)
+    except ValueError as e:
+        return [EditResult(file="", original="", updated="", diff="",
+                           success=False, error=str(e))]
 
-    if not matches:
-        # fallback: satu code block, apply ke semua editable files
+    if not edits:
         code_match = re.search(r"```[^\n]*\n(.*?)```", response, re.DOTALL)
         if code_match and len(files) == 1:
-            fname = list(files.keys())[0]
+            fname = chat_files[0]
             original = files[fname]
             updated = code_match.group(1)
             diff = make_diff(original, updated, fname)
@@ -199,20 +202,22 @@ def _apply_whole(response: str, files: dict[str, str]) -> list[EditResult]:
         return [EditResult(file="", original="", updated="", diff="",
                            success=False, error="Could not parse whole file response")]
 
-    for fname_hint, content in matches:
-        fname_hint = fname_hint.strip()
-        matched_path = _match_file(fname_hint, files)
+    for fname, updated in edits:
+        matched_path = _match_file(fname, files)
         if not matched_path:
+            results.append(EditResult(
+                file=fname, original="", updated="", diff="",
+                success=False, error=f"File not in context: {fname}"
+            ))
             continue
         original = files[matched_path]
-        diff = make_diff(original, content, fname_hint)
+        diff = make_diff(original, updated, fname)
         results.append(EditResult(
             file=matched_path, original=original,
-            updated=content, diff=diff, success=True,
+            updated=updated, diff=diff, success=True,
         ))
 
     return results
-
 
 # --- Helpers ---
 

@@ -318,7 +318,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                     verified = coder.verify(result) if written else False
 
                     if verified:
-                        s.context.reload(result.file)
+                        await s.context.reload(result.file)
                         await s.write_edit(result.file, result.diff, True)
                         yield sse("edit", {
                             "file": result.file,

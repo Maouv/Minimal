@@ -88,14 +88,14 @@ class ContextManager:
             "content": "Files in context:\n\n" + "\n\n".join(parts),
         }]
 
-    def reload(self, path: str) -> bool:
+    async def reload(self, path: str) -> bool:
         """Reload file content dari disk. Return False kalau gagal."""
-        import asyncio
         p = Path(path).resolve()
         if not p.exists():
             return False
         try:
-            content = p.read_text(encoding="utf-8", errors="replace")
+            async with aiofiles.open(p, "r", encoding="utf-8", errors="replace") as f:
+                content = await f.read()
             key = str(p)
             self.files[key] = content
             self.token_counts[key] = _estimate_tokens(content)
