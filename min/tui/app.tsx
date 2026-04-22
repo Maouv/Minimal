@@ -5,7 +5,7 @@
 // [status-bar - paling bawah]
 import { ChatView } from "./components/chat.tsx"
 import { InputBox } from "./components/input.tsx"
-import { CtxBar, StatusBar } from "./components/status.tsx"
+import { CtxBar } from "./components/status.tsx"
 import { C } from "./theme.ts"
 
 export function App() {
@@ -14,7 +14,6 @@ export function App() {
       <ChatView />
       <CtxBar />
       <InputBox />
-      <StatusBar />
     </box>
   )
 }

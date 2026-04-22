@@ -211,6 +211,21 @@ export function InputBox() {
           onSubmit={(val: string) => handleSubmit(val)}
         />
         </box>
+
+        {/* Meta: Ask · model */}
+        <box
+          width="100%"
+          flexDirection="row"
+          backgroundColor={C.bg2}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingBottom={1}
+        >
+          <text fg={modeColor()}>{modeLabel()}</text>
+          <text fg={C.gray2}>{" · "}</text>
+          <text fg={C.gray}>{state.model || "—"}</text>
+        </box>
+
       </box>
     </box>
   )
