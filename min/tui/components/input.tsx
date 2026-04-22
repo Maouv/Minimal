@@ -186,12 +186,16 @@ export function createInputBox(renderer: CliRenderer): BoxRenderable {
       return
     }
 
-    pushMessage("user", raw)
+    const idx = pushMessage("user", raw)
+    process.stderr.write(`[debug] pushMessage idx=${idx}, messages.length=${state.messages.length}\n`)
 
     try {
       const response = await sendPrompt(state.sessionId, raw)
+      process.stderr.write(`[debug] sendPrompt ok, consuming stream...\n`)
       await consumeStream(response)
+      process.stderr.write(`[debug] consumeStream done\n`)
     } catch (err) {
+      process.stderr.write(`[debug] error: ${err}\n`)
       setState("error", String(err))
       setState("streaming", false)
     }
