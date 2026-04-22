@@ -93,6 +93,23 @@ function UserMsg(props: { content: string }) {
   )
 }
 
+// ── System message ────────────────────────────────────────────────────────────
+// Untuk output /run, /undo, /diff, /commit — monospace, dim
+function SystemMsg(props: { content: string }) {
+  return (
+    <box
+      width="100%"
+      paddingLeft={3}
+      paddingRight={3}
+      paddingTop={1}
+      paddingBottom={1}
+      backgroundColor={C.bg}
+    >
+      <text fg={C.gray} flexWrap="wrap">{props.content}</text>
+    </box>
+  )
+}
+
 // ── AI message ────────────────────────────────────────────────────────────────
 function AiMsg(props: { msg: Message }) {
   const syntaxStyle = getMonokaiStyle()
@@ -194,7 +211,14 @@ export function ChatView() {
           {(msg) => (
             <Show
               when={msg.role === "user"}
-              fallback={<AiMsg msg={msg} />}
+              fallback={
+                <Show
+                  when={msg.role === "system"}
+                  fallback={<AiMsg msg={msg} />}
+                >
+                  <SystemMsg content={msg.content} />
+                </Show>
+              }
             >
               <UserMsg content={msg.content} />
             </Show>

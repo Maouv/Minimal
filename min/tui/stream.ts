@@ -30,6 +30,7 @@ interface TokensEvent  { context_tokens: number; session_tokens: number }
 interface DiffEvent    { diffs: Array<{ file: string; diff: string }> }
 interface RunEvent     { output: string; returncode: number }
 interface CommitEvent  { output: string }
+interface UndoEvent    { files: string[] }
 interface TextEvent    { content: string }  // /help output dll
 
 // ── Main consumer ─────────────────────────────────────────────────────────────
@@ -171,17 +172,38 @@ export async function consumeStream(response: Response): Promise<void> {
         break
       }
 
-      case "diff":
-      case "commit":
-      case "run":
-      case "undo":
-        // Tampilkan sebagai system message
-        {
-          const content = JSON.stringify(data, null, 2)
-          const idx = pushMessage("system", content)
+      case "diff": {
+        const e = data as unknown as DiffEvent
+        if (e.diffs && e.diffs.length > 0) {
+          const lines = e.diffs.map(d => `── ${d.file} ──\n${d.diff}`).join("\n\n")
+          const idx = pushMessage("system", lines)
           finalizeMessage(idx)
-          }
+        }
         break
+      }
+
+      case "commit": {
+        const e = data as unknown as CommitEvent
+        const idx = pushMessage("system", `✓ committed\n${e.output}`)
+        finalizeMessage(idx)
+        break
+      }
+
+      case "run": {
+        const e = data as unknown as RunEvent
+        const prefix = e.returncode === 0 ? "✓" : `✗ (exit ${e.returncode})`
+        const idx = pushMessage("system", `${prefix}\n${e.output}`)
+        finalizeMessage(idx)
+        break
+      }
+
+      case "undo": {
+        const e = data as unknown as UndoEvent
+        const list = e.files.join(", ")
+        const idx = pushMessage("system", `↩ undone: ${list}`)
+        finalizeMessage(idx)
+        break
+      }
     }
   }
 

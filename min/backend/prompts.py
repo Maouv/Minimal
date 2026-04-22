@@ -21,6 +21,7 @@ Be concise and direct. If you don't know something, say so."""
 
 def edit_system_prompt(mode: EditMode, editable_files: dict[str, str]) -> str:
     file_list = "\n".join(f"  - {p}" for p in editable_files) if editable_files else "  (none)"
+    file_paths = list(editable_files.keys())
 
     base = f"""You are a coding assistant in edit mode.
 
@@ -31,45 +32,50 @@ After applying edits, briefly explain what you changed and why.
 Only edit files listed above. Do not create new files unless explicitly asked."""
 
     if mode == "block":
-        return base + _editblock_instructions()
+        return base + _editblock_instructions(file_paths)
     elif mode == "udiff":
-        return base + _udiff_instructions()
+        return base + _udiff_instructions(file_paths)
     elif mode == "whole":
-        return base + _whole_instructions()
+        return base + _whole_instructions(file_paths)
     return base
 
 
-def _editblock_instructions() -> str:
-    return """
+def _editblock_instructions(file_paths: list[str]) -> str:
+    example_file = file_paths[0] if file_paths else "path/to/file.py"
+    return f"""
 
 ## Edit format: SEARCH/REPLACE blocks
 
-Use this exact format for every edit:
+To edit a file, output the EXACT file path on its own line, then immediately the SEARCH/REPLACE block.
+No backticks, no markdown, no extra characters around the filename.
 
+{example_file}
 <<<<<<< SEARCH
-<exact content to find>
+<exact content to find — must match file exactly, char for char>
 =======
 <new content to replace with>
 >>>>>>> REPLACE
 
 Rules:
-- SEARCH must match the file content exactly (whitespace, indentation)
-- Make multiple blocks for multiple changes
-- Specify the filename before each block like: `path/to/file.py`
-- Do not include line numbers
-- Do not truncate or abbreviate content in SEARCH blocks"""
+- The filename line must be EXACTLY as shown in the editable files list above
+- SEARCH content must match the file exactly (whitespace, indentation, no ellipsis)
+- One block per change; multiple blocks allowed for the same or different files
+- Never truncate or abbreviate SEARCH content
+- Do not wrap the filename in backticks or any other markers"""
 
 
-def _udiff_instructions() -> str:
-    return """
+def _udiff_instructions(file_paths: list[str]) -> str:
+    example_file = file_paths[0] if file_paths else "path/to/file.py"
+    return f"""
 
 ## Edit format: unified diff
 
-Use standard unified diff format inside a ```diff code block:
+Output edits as a unified diff inside a ```diff code block.
+Use the EXACT file path from the editable files list in the --- and +++ headers.
 
 ```diff
---- a/path/to/file.py
-+++ b/path/to/file.py
+--- a/{example_file}
++++ b/{example_file}
 @@ -10,7 +10,7 @@
  context line
 -old line
@@ -78,26 +84,30 @@ Use standard unified diff format inside a ```diff code block:
 ```
 
 Rules:
-- Include enough context lines (3) for unambiguous matching
-- One diff block per file
-- Use exact line content, no abbreviation"""
+- The path in --- / +++ must exactly match the editable files list (after stripping a/ b/ prefix)
+- Include 3 lines of context around each change for unambiguous matching
+- One ```diff block per file; multiple @@ hunks are fine in the same block
+- Use exact line content — no abbreviation, no ellipsis"""
 
 
-def _whole_instructions() -> str:
-    return """
+def _whole_instructions(file_paths: list[str]) -> str:
+    example_file = file_paths[0] if file_paths else "path/to/file.py"
+    ext = example_file.rsplit(".", 1)[-1] if "." in example_file else "python"
+    return f"""
 
 ## Edit format: whole file rewrite
 
-Output the complete new file content inside a code block.
-Specify the filename on the line before the code block:
+Output the EXACT file path on its own line, then immediately a fenced code block with the full file content.
+No blank line between the filename and the opening fence.
 
-path/to/file.py
-```python
-<complete file content here>
+{example_file}
+```{ext}
+<complete file content — every line, no truncation>
 ```
 
 Rules:
-- Output the ENTIRE file, not just changed parts
-- Include the filename line before the code block
-- Only use this for files where a full rewrite makes sense"""
+- The filename line must be EXACTLY as shown in the editable files list above
+- Output the ENTIRE file content — not just the changed parts
+- No blank line between filename and opening ```
+- Do not wrap the filename in backticks or other markers"""
 
