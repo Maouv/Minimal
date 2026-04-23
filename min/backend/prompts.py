@@ -47,20 +47,21 @@ def _editblock_instructions(file_paths: list[str]) -> str:
 ## Edit format: SEARCH/REPLACE blocks
 
 To edit a file, output the EXACT file path on its own line, then immediately the SEARCH/REPLACE block.
-No backticks, no markdown, no extra characters around the filename.
 
 {example_file}
 <<<<<<< SEARCH
-<exact content to find — must match file exactly, char for char>
+<only the lines you want to change — nothing more>
 =======
 <new content to replace with>
 >>>>>>> REPLACE
 
 Rules:
-- The filename line must be EXACTLY as shown in the editable files list above
-- SEARCH content must match the file exactly (whitespace, indentation, no ellipsis)
-- One block per change; multiple blocks allowed for the same or different files
+- SEARCH must contain ONLY the lines being changed — not the whole file, not the whole function
+- SEARCH must match the file exactly (whitespace, indentation, no ellipsis)
+- If changing paragraph 1, SEARCH contains only paragraph 1. If changing line 42, SEARCH contains only line 42.
+- Multiple blocks are allowed for multiple separate changes
 - Never truncate or abbreviate SEARCH content
+- The filename line must be EXACTLY as shown in the editable files list above
 - Do not wrap the filename in backticks or any other markers
 - Do NOT show file content before the block — go straight to filename then <<<<<<< SEARCH
 - Do NOT use XML tags like <file path="..."> or </file> — plain filename only"""
