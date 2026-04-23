@@ -50,16 +50,20 @@ export function InputBox() {
     } catch { fileCache = [] }
   }
 
+  let skipNextInput = false
+
   function completeSelected() {
     const items = acItems()
     const sel = items[acSelected()]
     if (!sel || !inputRef) return
+    skipNextInput = true
     inputRef.value = sel.value
     setAcItems([])
-    // Untuk command mode (bukan file), re-trigger handleInput supaya
-    // bisa lanjut autocomplete (e.g. user pilih /add, lalu muncul file list).
-    // Untuk file mode: TIDAK re-trigger — ini yang menyebabkan menu muncul lagi.
+    // Command mode: re-trigger handleInput supaya bisa lanjut ke file list
+    // (e.g. user pilih /add → munculkan file autocomplete)
+    // File mode: TIDAK re-trigger — file sudah dipilih, tinggal tunggu submit
     if (acMode() === "command") {
+      skipNextInput = false
       handleInput(sel.value)
     }
   }
@@ -85,6 +89,7 @@ export function InputBox() {
     }
     if (!state.sessionId) { setState("error", "no active session"); return }
 
+    skipNextInput = true
     if (inputRef) inputRef.value = ""
     setAcItems([])
 
@@ -103,6 +108,8 @@ export function InputBox() {
   }
 
   async function handleInput(value: string) {
+    if (skipNextInput) { skipNextInput = false; return }
+
     // Slash command menu
     if (value.startsWith("/") && !value.includes(" ")) {
       const matches = SLASH_COMMANDS
