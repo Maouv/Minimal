@@ -277,6 +277,9 @@ export function InputBox() {
           />
         </box>
 
+        {/* Gap separator */}
+        <box width="100%" height={1} backgroundColor={C.bg} />
+
         {/* Meta: mode · model */}
         <box
           width="100%"
@@ -284,6 +287,7 @@ export function InputBox() {
           backgroundColor={isDisabled() ? C.bg3 : C.bg2}
           paddingLeft={2}
           paddingRight={2}
+          paddingTop={1}
           paddingBottom={1}
         >
           <text fg={isDisabled() ? C.gray2 : modeColor()}>{isDisabled() ? "—" : modeLabel()}</text>
