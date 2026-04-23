@@ -6,17 +6,6 @@ import { For, Show, createMemo } from "solid-js"
 import { state, type Message } from "../state.ts"
 import { C, getMonokaiStyle } from "../theme.ts"
 
-function fileExtension(path: string): string {
-  const ext = path.split(".").pop()?.toLowerCase() ?? ""
-  const map: Record<string, string> = {
-    py: "python", ts: "typescript", tsx: "typescript",
-    js: "javascript", jsx: "javascript",
-    rs: "rust", go: "go", c: "c", cpp: "cpp",
-    json: "json", yaml: "yaml", yml: "yaml",
-    md: "markdown", sh: "bash", toml: "toml",
-  }
-  return map[ext] ?? ext
-}
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 // Center: logo ✦ besar + "minimal", lalu 2 history preview box
@@ -126,7 +115,47 @@ function stripEditBlocks(content: string): string {
   return out.trim()
 }
 
-function AiMsg(props: { msg: Message }) {
+// ── Diff renderer — manual, supaya bisa flexWrap ─────────────────────────────
+// <diff> component opentui tidak support wrapping. Render sendiri per baris.
+function DiffLines(props: { diff: string }) {
+  const lines = () => props.diff
+    .split("\n")
+    .filter(l => !l.startsWith("---") && !l.startsWith("+++") && !l.startsWith("@@") && l !== "")
+
+  return (
+    <box width="100%" flexDirection="column">
+      <For each={lines()}>
+        {(line) => {
+          const isAdded   = line.startsWith("+")
+          const isRemoved = line.startsWith("-")
+          const sign      = line[0]
+          const rest      = line.slice(1)
+          return (
+            <box
+              width="100%"
+              flexDirection="row"
+              backgroundColor={isAdded ? "#0d1a00" : isRemoved ? "#1a0009" : "transparent"}
+              paddingLeft={1}
+            >
+              <text fg={isAdded ? C.gdim : isRemoved ? C.pink : C.gray2} flexShrink={0}>
+                {isAdded || isRemoved ? sign : " "}
+              </text>
+              <text
+                fg={isAdded ? C.green : isRemoved ? C.pink : C.gray}
+                flexWrap="wrap"
+                flexGrow={1}
+              >
+                {rest}
+              </text>
+            </box>
+          )
+        }}
+      </For>
+    </box>
+  )
+}
+
+
   const syntaxStyle = getMonokaiStyle()
 
   // Freeze content setelah done — completed messages tidak re-render
@@ -189,20 +218,7 @@ function AiMsg(props: { msg: Message }) {
                 </box>
                 {/* diff body */}
                 <Show when={edit.diff}>
-                  <diff
-                    diff={edit.diff}
-                    width="100%"
-                    view="unified"
-                    filetype={fileExtension(edit.file)}
-                    syntaxStyle={syntaxStyle}
-                    showLineNumbers={false}
-                    fg={C.white}
-                    addedBg="#0d1a00"
-                    removedBg="#1a0009"
-                    contextBg={C.bg}
-                    addedSignColor={C.gdim}
-                    removedSignColor={C.pink}
-                  />
+                  <DiffLines diff={edit.diff} />
                 </Show>
               </box>
             )
