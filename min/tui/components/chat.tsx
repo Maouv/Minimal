@@ -278,12 +278,10 @@ export function ChatView() {
       stickyScroll
       stickyStart="bottom"
       backgroundColor={C.bg}
-      scrollbarOptions={{
-        verticalScrollbarOptions: {
-          trackOptions: {
-            foregroundColor: C.bg,
-            backgroundColor: C.bg,
-          },
+      verticalScrollbarOptions={{
+        trackOptions: {
+          foregroundColor: C.bg,
+          backgroundColor: C.bg,
         },
       }}
     >
