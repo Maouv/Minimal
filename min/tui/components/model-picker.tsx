@@ -36,7 +36,10 @@ export function ModelPicker(props: Props) {
   const [activeProvider, setActiveProvider] = createSignal<Provider | null>(null)
   const [manualMode, setManualMode] = createSignal(false)
 
-  let inputRef: InputRenderable | undefined
+  let refBaseUrl: InputRenderable | undefined
+  let refApiKey: InputRenderable | undefined
+  let refModelFilter: InputRenderable | undefined
+  let refManualModel: InputRenderable | undefined
 
   onMount(() => {
     listProviders().then(p => {
@@ -79,7 +82,7 @@ export function ModelPicker(props: Props) {
         if (!item) return
         if (item.isNew) {
           setPhase("new-baseurl"); setError("")
-          setTimeout(() => inputRef?.focus?.(), 50)
+          setTimeout(() => refBaseUrl?.focus?.(), 50)
         } else {
           setActiveProvider(item.provider)
           setNewApiKey("")
@@ -117,7 +120,7 @@ export function ModelPicker(props: Props) {
       setManualMode(true); setModelList([])
       setError(result.error ?? "Provider tidak support /v1/models")
       setPhase("model-select")
-      setTimeout(() => inputRef?.focus?.(), 50)
+      setTimeout(() => refManualModel?.focus?.(), 50)
     }
   }
 
@@ -133,7 +136,7 @@ export function ModelPicker(props: Props) {
     const url = val.trim(); if (!url) return
     setNewBaseUrl(url); setNewName(_deriveNameFromUrl(url))
     setPhase("new-apikey"); setError("")
-    setTimeout(() => inputRef?.focus?.(), 50)
+    setTimeout(() => refApiKey?.focus?.(), 50)
   }
 
   async function _submitApiKey(val: string) {
@@ -154,7 +157,7 @@ export function ModelPicker(props: Props) {
     } catch (e) {
       setError(String(e))
       setPhase("model-select")
-      setTimeout(() => inputRef?.focus?.(), 50)
+      setTimeout(() => manualMode() ? refManualModel?.focus?.() : refModelFilter?.focus?.(), 50)
     }
   }
 
@@ -198,7 +201,7 @@ export function ModelPicker(props: Props) {
         <Show when={phase() === "new-baseurl"}>
           <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
             <text fg={C.gray} marginBottom={1}>Base URL</text>
-            <input ref={inputRef} flexGrow={1}
+            <input ref={refBaseUrl} flexGrow={1}
               placeholder="https://openrouter.ai/api/v1" placeholderColor={C.gray2}
               backgroundColor={C.bg2} textColor={C.white}
               focusedBackgroundColor={C.bg3} focusedTextColor={C.white}
@@ -211,7 +214,7 @@ export function ModelPicker(props: Props) {
         <Show when={phase() === "new-apikey"}>
           <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
             <text fg={C.gray} marginBottom={1}>API Key  <text fg={C.gray2}>{newBaseUrl()}</text></text>
-            <input ref={inputRef} flexGrow={1}
+            <input ref={refApiKey} flexGrow={1}
               placeholder="sk-or-v1-..." placeholderColor={C.gray2}
               backgroundColor={C.bg2} textColor={C.white}
               focusedBackgroundColor={C.bg3} focusedTextColor={C.white}
@@ -224,7 +227,7 @@ export function ModelPicker(props: Props) {
         <Show when={phase() === "model-select" && !manualMode()}>
           <box width="100%" flexDirection="column">
             <box width="100%" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
-              <input ref={inputRef} flexGrow={1}
+              <input ref={refModelFilter} flexGrow={1}
                 placeholder="filter model..." placeholderColor={C.gray2}
                 backgroundColor={C.bg2} textColor={C.white}
                 focusedBackgroundColor={C.bg2} focusedTextColor={C.white}
@@ -252,7 +255,7 @@ export function ModelPicker(props: Props) {
         <Show when={phase() === "model-select" && manualMode()}>
           <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
             <text fg={C.gray} marginBottom={1}>Model ID  <text fg={C.pink}>{error()}</text></text>
-            <input ref={inputRef} flexGrow={1}
+            <input ref={refManualModel} flexGrow={1}
               placeholder="openai/gpt-4o" placeholderColor={C.gray2}
               backgroundColor={C.bg2} textColor={C.white}
               focusedBackgroundColor={C.bg3} focusedTextColor={C.white}
