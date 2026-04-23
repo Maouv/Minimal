@@ -240,8 +240,16 @@ export function ModelPicker(props: Props) {
               {(item, i) => (
                 <box width="100%" flexDirection="row" height={1} paddingLeft={2} paddingRight={2}
                   backgroundColor={i() === selIdx() ? C.bg3 : C.bg2}>
-                  <text fg={item.isNew ? C.green : C.orange} width={22}>{item.label}</text>
-                  <text fg={C.gray}>{item.desc}</text>
+                  {item.isNew
+                    ? <text fg={C.green} flexGrow={1}>{item.label}</text>
+                    : <>
+                        <text fg={C.white} width={28}>
+                          {item.provider.last_model ?? "—"}
+                        </text>
+                        <text fg={C.orange} width={16}>{item.provider.name}</text>
+                        <text fg={C.gray}>{item.provider.base_url}</text>
+                      </>
+                  }
                 </box>
               )}
             </For>

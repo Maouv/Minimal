@@ -128,6 +128,7 @@ export interface Provider {
   name: string
   base_url: string
   env_key: string
+  last_model?: string
 }
 
 export interface ProbeResult {

@@ -210,6 +210,7 @@ def add_provider(name: str, pbase_url: str, papi_key: str) -> dict:
 def switch_provider_model(provider: dict, model_id: str) -> None:
     """
     Switch active provider + model — update LLM_BASE_URL, LLM_API_KEY, LLM_MODEL di .env.
+    Juga simpan last_model ke providers.json supaya bisa ditampilkan di list.
     """
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     if not _ENV_FILE.exists():
@@ -221,6 +222,14 @@ def switch_provider_model(provider: dict, model_id: str) -> None:
     set_key(str(_ENV_FILE), "LLM_BASE_URL", provider["base_url"])
     set_key(str(_ENV_FILE), "LLM_API_KEY", resolved_key)
     set_key(str(_ENV_FILE), "LLM_MODEL", model_id)
+
+    # Simpan last_model ke providers.json
+    providers = load_providers()
+    for p in providers:
+        if p["name"] == provider["name"]:
+            p["last_model"] = model_id
+            break
+    _save_providers(providers)
 
     # Reload env supaya getters langsung return nilai baru
     load_dotenv(_ENV_FILE, override=True)
