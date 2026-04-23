@@ -25,7 +25,8 @@ const SLASH_COMMANDS = [
   { cmd: "/commit",     desc: "git commit" },
   { cmd: "/run",        desc: "run shell command" },
   { cmd: "/tokens",     desc: "show token usage" },
-  { cmd: "/model",      desc: "switch / add model" },
+  { cmd: "/model",      desc: "switch model" },
+  { cmd: "/model-add",  desc: "tambah provider & model baru" },
   { cmd: "/help",       desc: "show help" },
 ]
 
@@ -107,17 +108,24 @@ export function InputBox() {
   })
 
   async function handleSubmit(value: string) {
-    // acItems sudah di-handle sepenuhnya via useKeyboard + preventDefault
-    // handleSubmit hanya dipanggil saat benar-benar mau submit
     const raw = value.trim()
     if (!raw) return
 
-    // /model atau /model add → buka ModelPicker overlay
-    if (raw === "/model" || raw === "/model add" || raw === "/model ") {
+    // /model-add → buka ModelPicker dalam mode add-provider
+    if (raw === "/model-add" || raw === "/model-add ") {
       skipNextInput = true
       if (inputRef) inputRef.value = ""
       setAcItems([])
-      setState("showModelPicker", true)
+      setState("showModelPicker", "add")
+      return
+    }
+
+    // /model → buka ModelPicker dalam mode switch
+    if (raw === "/model" || raw === "/model ") {
+      skipNextInput = true
+      if (inputRef) inputRef.value = ""
+      setAcItems([])
+      setState("showModelPicker", "switch")
       return
     }
 
@@ -213,12 +221,13 @@ export function InputBox() {
     return m[state.mode] ?? state.mode
   }
   const modeColor = () => state.streaming ? C.green : (MODE_COLOR[state.mode] ?? C.cyan)
+  const isDisabled = () => !!state.showModelPicker
 
   return (
     <box width="100%" flexDirection="column" flexShrink={0} backgroundColor={C.bg}>
 
-      {/* Slash menu — gap kiri kanan sama input, antar item ada separator */}
-      <Show when={acItems().length > 0}>
+      {/* Slash menu */}
+      <Show when={acItems().length > 0 && !isDisabled()}>
         <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingTop={2}>
           <box width="100%" flexDirection="column" backgroundColor={C.bg2} flexShrink={0}>
             <For each={acItems()}>
@@ -231,57 +240,56 @@ export function InputBox() {
                   paddingRight={2}
                   backgroundColor={i() === acSelected() ? C.bg3 : C.bg2}
                 >
-                <text fg={C.orange} width={16}>{item.label}</text>
-                <text fg={C.gray}>{item.desc}</text>
-              </box>
+                  <text fg={C.orange} width={16}>{item.label}</text>
+                  <text fg={C.gray}>{item.desc}</text>
+                </box>
               )}
             </For>
           </box>
         </box>
       </Show>
 
-      {/* Input box — gap di kiri kanan bawah pakai padding di wrapper */}
+      {/* Input box */}
       <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingBottom={2}>
         <box
           width="100%"
           flexDirection="row"
           alignItems="center"
-          backgroundColor={C.bg2}
+          backgroundColor={isDisabled() ? C.bg3 : C.bg2}
           paddingLeft={2}
           paddingRight={2}
           paddingTop={1}
           paddingBottom={1}
         >
-        <text fg={C.blue} marginRight={1}>✦</text>
-        <input
-          ref={inputRef}
-          flexGrow={1}
-          placeholder='Ask anything... "Whats the tech stack of this project?"'
-          placeholderColor={C.gray2}
-          backgroundColor={C.bg2}
-          textColor={C.white}
-          focusedBackgroundColor={C.bg2}
-          focusedTextColor={C.white}
-          focused
-          onInput={(val: string) => handleInput(val)}
-          onSubmit={(val: string) => handleSubmit(val)}
-        />
+          <text fg={isDisabled() ? C.gray2 : C.blue} marginRight={1}>✦</text>
+          <input
+            ref={inputRef}
+            flexGrow={1}
+            placeholder={isDisabled() ? "" : 'Ask anything... "Whats the tech stack of this project?"'}
+            placeholderColor={C.gray2}
+            backgroundColor={isDisabled() ? C.bg3 : C.bg2}
+            textColor={isDisabled() ? C.gray2 : C.white}
+            focusedBackgroundColor={isDisabled() ? C.bg3 : C.bg2}
+            focusedTextColor={isDisabled() ? C.gray2 : C.white}
+            focused={!isDisabled()}
+            onInput={(val: string) => { if (!isDisabled()) handleInput(val) }}
+            onSubmit={(val: string) => { if (!isDisabled()) handleSubmit(val) }}
+          />
         </box>
 
-        {/* Meta: Ask · model */}
+        {/* Meta: mode · model */}
         <box
           width="100%"
           flexDirection="row"
-          backgroundColor={C.bg2}
+          backgroundColor={isDisabled() ? C.bg3 : C.bg2}
           paddingLeft={2}
           paddingRight={2}
           paddingBottom={1}
         >
-          <text fg={modeColor()}>{modeLabel()}</text>
+          <text fg={isDisabled() ? C.gray2 : modeColor()}>{isDisabled() ? "—" : modeLabel()}</text>
           <text fg={C.gray2}>{" · "}</text>
           <text fg={C.gray}>{state.model || "—"}</text>
         </box>
-
       </box>
     </box>
   )

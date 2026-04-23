@@ -35,7 +35,7 @@ export interface AppState {
   inputTokens: number
   outputTokens: number
   error: string | null
-  showModelPicker: boolean
+  showModelPicker: "switch" | "add" | false
 }
 
 export const [state, setState] = createStore<AppState>({

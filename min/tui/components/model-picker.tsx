@@ -1,7 +1,6 @@
-// model-picker.tsx — overlay /model add flow
-// State machine: provider-select → new-baseurl → new-apikey → model-select
-//                              ↘ existing → model-select (probe dulu)
-// Style: sama dengan slash command list
+// model-picker.tsx — overlay melayang di atas input bar
+// mode="switch" → list model existing, pilih = switch
+// mode="add"    → new-baseurl → new-apikey → model-select
 
 import { createSignal, For, Show, onMount } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
@@ -13,21 +12,17 @@ import {
 } from "../client.ts"
 import { C } from "../theme.ts"
 
-type Phase =
-  | "provider-select"
-  | "new-baseurl"
-  | "new-apikey"
-  | "model-select"
-  | "loading"
+type Phase = "switch" | "new-baseurl" | "new-apikey" | "model-select" | "loading"
 
 const MAX_VISIBLE = 10
 
 interface Props {
+  mode: "switch" | "add"
   onDone: () => void
 }
 
 export function ModelPicker(props: Props) {
-  const [phase, setPhase] = createSignal<Phase>("provider-select")
+  const [phase, setPhase] = createSignal<Phase>(props.mode === "switch" ? "switch" : "new-baseurl")
   const [selIdx, setSelIdx] = createSignal(0)
   const [filter, setFilter] = createSignal("")
   const [error, setError] = createSignal("")
@@ -44,13 +39,31 @@ export function ModelPicker(props: Props) {
   let inputRef: InputRenderable | undefined
 
   onMount(() => {
-    listProviders().then(setProviders).catch(() => setProviders([]))
+    listProviders().then(p => {
+      setProviders(p)
+      if (props.mode === "switch" && p.length === 0) {
+        // Tidak ada provider — langsung ke add flow
+        setPhase("new-baseurl")
+      }
+    }).catch(() => setProviders([]))
   })
 
-  const providerItems = () => [
-    { label: "+ New provider", desc: "tambah provider baru" },
-    ...providers().map(p => ({ label: p.name, desc: p.base_url })),
-  ]
+  // ── Switch mode: list semua model dari semua providers ─────────────────────
+  // Format: "ProviderName / model-id"
+  const allModels = () => providers().flatMap(p =>
+    // Kita tampilkan provider name sebagai group header, model pakai nama saja
+    // Untuk sekarang: flat list "model-id  (provider)"
+    [{ label: p.name, modelId: p.name, isHeader: true },]
+  )
+
+  // Filtered model list untuk mode switch — flat list model per provider
+  // Karena kita tidak tahu model list tanpa probe, tampilkan provider saja
+  // User pilih provider → probe → pilih model
+  const switchItems = () => {
+    const q = filter().toLowerCase()
+    return providers()
+      .filter(p => !q || p.name.toLowerCase().includes(q) || p.base_url.toLowerCase().includes(q))
+  }
 
   const filteredModels = () => {
     const q = filter().toLowerCase()
@@ -58,28 +71,22 @@ export function ModelPicker(props: Props) {
     return (q ? all.filter(m => m.toLowerCase().includes(q)) : all).slice(0, MAX_VISIBLE)
   }
 
+  // ── Keyboard ───────────────────────────────────────────────────────────────
   useKeyboard((key) => {
     if (key.name === "escape") { key.preventDefault(); props.onDone(); return }
 
     const ph = phase()
 
-    if (ph === "provider-select") {
-      const items = providerItems()
+    if (ph === "switch") {
+      const items = switchItems()
       if (key.name === "up")   { key.preventDefault(); setSelIdx(s => Math.max(0, s - 1)); return }
       if (key.name === "down") { key.preventDefault(); setSelIdx(s => Math.min(items.length - 1, s + 1)); return }
       if (key.name === "return") {
         key.preventDefault()
-        const idx = selIdx()
-        if (idx === 0) {
-          setPhase("new-baseurl"); setError("")
-          setTimeout(() => inputRef?.focus?.(), 50)
-        } else {
-          const provider = providers()[idx - 1]
-          setActiveProvider(provider)
-          _probeExisting(provider)
-        }
+        const provider = items[selIdx()]
+        if (provider) { setActiveProvider(provider); _probeForSwitch(provider) }
+        return
       }
-      return
     }
 
     if (ph === "model-select" && !manualMode()) {
@@ -95,10 +102,10 @@ export function ModelPicker(props: Props) {
     }
   })
 
-  async function _probeExisting(provider: Provider) {
+  // ── Actions ────────────────────────────────────────────────────────────────
+  async function _probeForSwitch(provider: Provider) {
     setPhase("loading")
     setLoadingMsg(`Fetching models from ${provider.name}...`)
-    // Kirim "__from_env__" sebagai sinyal ke backend untuk pakai API key dari .env
     const result = await probeProvider(provider.base_url, "__from_env__")
     _handleProbeResult(result)
   }
@@ -155,28 +162,39 @@ export function ModelPicker(props: Props) {
     await _selectModel(modelId)
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+  // Wrapper paddingLeft/Right/Top untuk efek melayang di atas input bar
   return (
-    <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingTop={2}>
+    <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingTop={1}>
       <box width="100%" flexDirection="column" backgroundColor={C.bg2} flexShrink={0}>
 
+        {/* Loading */}
         <Show when={phase() === "loading"}>
           <box width="100%" height={2} flexDirection="row" alignItems="center" paddingLeft={2}>
             <text fg={C.gray}>{loadingMsg()}</text>
           </box>
         </Show>
 
-        <Show when={phase() === "provider-select"}>
-          <For each={providerItems()}>
-            {(item, i) => (
-              <box width="100%" flexDirection="row" height={1} paddingLeft={2} paddingRight={2}
-                backgroundColor={i() === selIdx() ? C.bg3 : C.bg2}>
-                <text fg={i() === 0 ? C.green : C.orange} width={22}>{item.label}</text>
-                <text fg={C.gray}>{item.desc}</text>
-              </box>
-            )}
-          </For>
+        {/* Switch — list providers */}
+        <Show when={phase() === "switch"}>
+          <Show when={switchItems().length > 0} fallback={
+            <box height={2} paddingLeft={2} alignItems="center">
+              <text fg={C.gray}>Tidak ada provider. Gunakan /model-add</text>
+            </box>
+          }>
+            <For each={switchItems()}>
+              {(provider, i) => (
+                <box width="100%" flexDirection="row" height={1} paddingLeft={2} paddingRight={2}
+                  backgroundColor={i() === selIdx() ? C.bg3 : C.bg2}>
+                  <text fg={C.orange} width={20}>{provider.name}</text>
+                  <text fg={C.gray}>{provider.base_url}</text>
+                </box>
+              )}
+            </For>
+          </Show>
         </Show>
 
+        {/* Add — Base URL */}
         <Show when={phase() === "new-baseurl"}>
           <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
             <text fg={C.gray} marginBottom={1}>Base URL</text>
@@ -189,6 +207,7 @@ export function ModelPicker(props: Props) {
           </box>
         </Show>
 
+        {/* Add — API Key */}
         <Show when={phase() === "new-apikey"}>
           <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
             <text fg={C.gray} marginBottom={1}>API Key  <text fg={C.gray2}>{newBaseUrl()}</text></text>
@@ -201,6 +220,7 @@ export function ModelPicker(props: Props) {
           </box>
         </Show>
 
+        {/* Model list dengan filter */}
         <Show when={phase() === "model-select" && !manualMode()}>
           <box width="100%" flexDirection="column">
             <box width="100%" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
@@ -228,6 +248,7 @@ export function ModelPicker(props: Props) {
           </box>
         </Show>
 
+        {/* Manual fallback */}
         <Show when={phase() === "model-select" && manualMode()}>
           <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
             <text fg={C.gray} marginBottom={1}>Model ID  <text fg={C.pink}>{error()}</text></text>
@@ -239,6 +260,7 @@ export function ModelPicker(props: Props) {
           </box>
         </Show>
 
+        {/* Footer */}
         <box width="100%" paddingLeft={2} paddingRight={2} paddingBottom={1}>
           <text fg={C.gray2}>↑↓ navigate  ↵ select  esc cancel</text>
         </box>

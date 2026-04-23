@@ -58,10 +58,14 @@ export function App() {
         <ChatView />
       </Show>
       <CtxBar />
-      {/* ModelPicker muncul di atas InputBox, replace slot yang sama */}
-      <Show when={state.showModelPicker} fallback={<InputBox />}>
-        <ModelPicker onDone={() => setState("showModelPicker", false)} />
+      {/* ModelPicker overlay melayang di atas InputBox */}
+      <Show when={!!state.showModelPicker}>
+        <ModelPicker
+          mode={state.showModelPicker as "switch" | "add"}
+          onDone={() => setState("showModelPicker", false)}
+        />
       </Show>
+      <InputBox />
     </box>
   )
 }
