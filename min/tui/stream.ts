@@ -16,6 +16,7 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const HEARTBEAT_TIMEOUT_MS = 30_000  // 30s tanpa ping → anggap mati
+const TOKEN_FLUSH_MS = 32            // ~30 FPS — flush token buffer ke state
 
 // ── Event payloads ────────────────────────────────────────────────────────────
 // Sesuai backend main.py yield sse(...)
@@ -44,6 +45,33 @@ export async function consumeStream(response: Response): Promise<void> {
   let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
   let assistantIdx = -1           // index message assistant yang sedang diisi
   const pendingEdits: EditResult[] = []
+
+  // ── Token throttle buffer ──────────────────────────────────────────────────
+  // Kumpulkan token di sini, flush ke Solid state setiap TOKEN_FLUSH_MS.
+  // Ini potong reactive updates dari ratusan/detik → ~30x/detik.
+  let tokenBuffer = ""
+  let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+  function flushTokens() {
+    flushTimer = null
+    if (tokenBuffer === "" || assistantIdx === -1) return
+    appendToken(assistantIdx, tokenBuffer)
+    tokenBuffer = ""
+  }
+
+  function scheduleFlush() {
+    if (flushTimer === null) {
+      flushTimer = setTimeout(flushTokens, TOKEN_FLUSH_MS)
+    }
+  }
+
+  function flushImmediate() {
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer)
+      flushTimer = null
+    }
+    flushTokens()
+  }
 
   function resetHeartbeat() {
     if (heartbeatTimer) clearTimeout(heartbeatTimer)
@@ -78,12 +106,15 @@ export async function consumeStream(response: Response): Promise<void> {
       case "token": {
         const e = data as unknown as TokenEvent
         if (assistantIdx === -1) {
-          // Mulai message assistant baru
+          // Mulai message assistant baru — flush dulu kalau ada sisa
+          flushImmediate()
           assistantIdx = pushMessage("assistant")
           setState("streaming", true)
           setState("error", null)
         }
-        appendToken(assistantIdx, e.content)
+        // Buffer token, jangan langsung ke state
+        tokenBuffer += e.content
+        scheduleFlush()
         resetHeartbeat()
         break
       }
@@ -102,6 +133,7 @@ export async function consumeStream(response: Response): Promise<void> {
 
       case "done": {
         const e = data as unknown as DoneEvent
+        flushImmediate()  // pastikan semua token masuk sebelum finalize
         if (assistantIdx !== -1) {
           finalizeMessage(assistantIdx, pendingEdits.length ? [...pendingEdits] : undefined)
         }
@@ -116,6 +148,7 @@ export async function consumeStream(response: Response): Promise<void> {
 
       case "error": {
         const e = data as unknown as ErrorEvent
+        flushImmediate()  // flush sisa token sebelum error state
         setState("error", e.message)
         setState("streaming", false)
         if (assistantIdx !== -1) {
@@ -239,10 +272,9 @@ export async function consumeStream(response: Response): Promise<void> {
       }
     }
   } finally {
+    flushImmediate()  // flush sisa token yang belum masuk
     stopHeartbeat()
     reader.releaseLock()
-    // Pastikan streaming flag selalu di-reset saat stream berakhir
-    // (command-only responses tidak emit event "done")
     setState("streaming", false)
   }
 }
