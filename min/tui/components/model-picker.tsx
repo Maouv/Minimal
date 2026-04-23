@@ -148,7 +148,11 @@ export function ModelPicker(props: Props) {
       await switchModel(provider.name, modelId)
       setState("model", modelId)
       props.onDone()
-    } catch (e) { setError(String(e)); setPhase("model-select") }
+    } catch (e) {
+      setError(String(e))
+      setPhase("model-select")
+      setTimeout(() => inputRef?.focus?.(), 50)
+    }
   }
 
   async function _submitManualModel(val: string) {
