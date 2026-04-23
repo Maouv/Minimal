@@ -52,6 +52,7 @@ export function InputBox() {
 
   let skipNextInput = false
 
+  // Untuk command mode: complete dan re-trigger handleInput
   function completeSelected() {
     const items = acItems()
     const sel = items[acSelected()]
@@ -59,26 +60,44 @@ export function InputBox() {
     skipNextInput = true
     inputRef.value = sel.value
     setAcItems([])
-    // Command mode: re-trigger handleInput supaya bisa lanjut ke file list
-    // (e.g. user pilih /add → munculkan file autocomplete)
-    // File mode: TIDAK re-trigger — file sudah dipilih, tinggal tunggu submit
     if (acMode() === "command") {
       skipNextInput = false
       handleInput(sel.value)
     }
   }
 
+  // Untuk file mode: insert file ke input, refresh list untuk batch add
+  // TIDAK submit — user perlu Enter lagi (tanpa suggestion) untuk submit
+  function insertFile() {
+    const items = acItems()
+    const sel = items[acSelected()]
+    if (!sel || !inputRef) return
+    // sel.value sudah berupa "/add path/to/file " (trailing space)
+    skipNextInput = false  // kita MAU trigger handleInput untuk refresh list
+    inputRef.value = sel.value
+    setAcSelected(0)
+    // handleInput akan dipanggil via onInput yang di-fire oleh set value
+    // Kalau opentui tidak fire onInput programmatically, panggil manual:
+    handleInput(sel.value)
+  }
+
   useKeyboard((key) => {
     if (acItems().length === 0) return
-    if (key.name === "up")   { setAcSelected(s => Math.max(0, s - 1)); return }
-    if (key.name === "down") { setAcSelected(s => Math.min(acItems().length - 1, s + 1)); return }
-    if (key.name === "tab")  { completeSelected(); return }
-    if (key.name === "return" && acMode() === "file") { completeSelected(); return }
+    if (key.name === "up")     { setAcSelected(s => Math.max(0, s - 1)); return }
+    if (key.name === "down")   { setAcSelected(s => Math.min(acItems().length - 1, s + 1)); return }
+    if (key.name === "tab")    { completeSelected(); return }
+    if (key.name === "return") {
+      if (acMode() === "file") { insertFile(); return }  // pilih file, lanjut batch
+      completeSelected(); return                          // command mode: complete
+    }
     if (key.name === "escape") { setAcItems([]); return }
   })
 
   async function handleSubmit(value: string) {
-    if (acItems().length > 0) { completeSelected(); return }
+    if (acItems().length > 0) {
+      if (acMode() === "file") { insertFile(); return }
+      completeSelected(); return
+    }
     const raw = value.trim()
     if (!raw) return
 
@@ -146,7 +165,10 @@ export function InputBox() {
       const tokens = afterCmd.split(" ")
       const pattern = tokens[tokens.length - 1].toLowerCase()
       const prefix = value.slice(0, value.length - pattern.length)
+      // File yang sudah ada di input (sebelum pattern terakhir) — exclude dari list
+      const alreadyAdded = new Set(tokens.slice(0, -1).filter(Boolean))
       const matches = fileCache
+        .filter(f => !alreadyAdded.has(f))
         .filter(f => pattern === "" || f.toLowerCase().includes(pattern))
         .slice(0, 12)
         .map(f => {
