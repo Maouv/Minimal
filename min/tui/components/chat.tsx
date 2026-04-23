@@ -115,49 +115,69 @@ function stripEditBlocks(content: string): string {
   return out.trim()
 }
 
-// ── Diff renderer — horizontal scrollbox supaya tidak terpotong ──────────────
+// ── Diff renderer — claude code style: line numbers + truncate ────────────────
+// Tidak ada scrollbar. Teks panjang truncate dengan … di ujung.
+// Line number di kiri abu-abu, sign +/- di tengah, konten di kanan.
 function DiffBlock(props: { diff: string; file: string }) {
-  const syntaxStyle = getMonokaiStyle()
-  const ext = () => {
-    const e = props.file.split(".").pop()?.toLowerCase() ?? ""
-    const map: Record<string, string> = {
-      py: "python", ts: "typescript", tsx: "typescript",
-      js: "javascript", jsx: "javascript",
-      rs: "rust", go: "go", c: "c", cpp: "cpp",
-      json: "json", yaml: "yaml", yml: "yaml",
-      md: "markdown", sh: "bash", toml: "toml",
+  const parsed = () => {
+    const lines: Array<{ type: "added"|"removed"|"context"; lineNo: number; content: string }> = []
+    let lineNo = 0
+    for (const raw of props.diff.split("\n")) {
+      if (raw.startsWith("---") || raw.startsWith("+++")) continue
+      if (raw.startsWith("@@")) {
+        // Extract starting line number dari @@ -x,y +a,b @@
+        const m = raw.match(/@@ [+-]\d+(?:,\d+)? [+-](\d+)/)
+        if (m) lineNo = parseInt(m[1]) - 1
+        continue
+      }
+      if (raw === "") continue
+      const sign = raw[0]
+      const content = raw.slice(1)
+      if (sign === "+") {
+        lineNo++
+        lines.push({ type: "added", lineNo, content })
+      } else if (sign === "-") {
+        lines.push({ type: "removed", lineNo: 0, content })
+      } else {
+        lineNo++
+        lines.push({ type: "context", lineNo, content })
+      }
     }
-    return map[e] ?? e
+    return lines
   }
 
   return (
-    <scrollbox
-      width="100%"
-      scrollX
-      scrollbarOptions={{
-        horizontalScrollbarOptions: {
-          trackOptions: { foregroundColor: C.gray2, backgroundColor: C.bg2 },
-        },
-        verticalScrollbarOptions: {
-          trackOptions: { foregroundColor: C.bg, backgroundColor: C.bg },
-        },
-      }}
-    >
-      <diff
-        diff={props.diff}
-        width="100%"
-        view="unified"
-        filetype={ext()}
-        syntaxStyle={syntaxStyle}
-        showLineNumbers={false}
-        fg={C.white}
-        addedBg="#0d1a00"
-        removedBg="#1a0009"
-        contextBg={C.bg}
-        addedSignColor={C.gdim}
-        removedSignColor={C.pink}
-      />
-    </scrollbox>
+    <box width="100%" flexDirection="column">
+      <For each={parsed()}>
+        {(line) => (
+          <box
+            width="100%"
+            flexDirection="row"
+            backgroundColor={
+              line.type === "added"   ? "#0d1a00" :
+              line.type === "removed" ? "#1a0009" : "transparent"
+            }
+          >
+            {/* line number */}
+            <text fg={C.gray2} width={4} textAlign="right" marginRight={1}>
+              {line.type === "removed" ? "" : String(line.lineNo)}
+            </text>
+            {/* sign */}
+            <text fg={line.type === "added" ? C.gdim : line.type === "removed" ? C.pink : C.gray2} width={1} marginRight={1}>
+              {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+            </text>
+            {/* content — truncate kalau terlalu panjang */}
+            <text
+              fg={line.type === "added" ? C.green : line.type === "removed" ? C.pink : C.gray}
+              flexGrow={1}
+              truncate
+            >
+              {line.content}
+            </text>
+          </box>
+        )}
+      </For>
+    </box>
   )
 }
 
