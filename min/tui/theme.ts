@@ -28,6 +28,7 @@ export const MODE_COLOR: Record<string, string> = {
 
 export function createMonokaiStyle(): SyntaxStyle {
   return SyntaxStyle.fromStyles({
+    // ── Code syntax ────────────────────────────────────────────────────────
     "keyword":               { fg: C.pink },
     "keyword.control":       { fg: C.pink },
     "keyword.return":        { fg: C.pink },
@@ -56,11 +57,51 @@ export function createMonokaiStyle(): SyntaxStyle {
     "attribute":             { fg: C.green },
     "escape":                { fg: C.cyan },
     "conceal":               { fg: C.gray },
+
+    // ── Markdown markup ────────────────────────────────────────────────────
+    // Headers — makin tinggi level makin terang
+    "markup.heading":        { fg: C.blue },
+    "markup.heading.1":      { fg: C.blue },
+    "markup.heading.2":      { fg: C.cyan },
+    "markup.heading.3":      { fg: C.green },
+    "markup.heading.4":      { fg: C.orange },
+    "markup.heading.5":      { fg: C.purple },
+    "markup.heading.6":      { fg: C.gray },
+
+    // Bold — orange supaya kelihatan berbeda
+    "markup.bold":           { fg: C.orange },
+    "markup.strong":         { fg: C.orange },
+
+    // Italic — purple
+    "markup.italic":         { fg: C.purple },
+    "markup.emphasis":       { fg: C.purple },
+
+    // Inline code — kuning + bg gelap
+    "markup.raw":            { fg: "#e6db74" },
+    "markup.raw.inline":     { fg: "#e6db74" },
+    "markup.raw.block":      { fg: "#e6db74" },
+
+    // List markers
+    "markup.list":           { fg: C.cyan },
+    "markup.list.bullet":    { fg: C.cyan },
+    "markup.list.numbered":  { fg: C.cyan },
+
+    // Links
+    "markup.link":           { fg: C.blue },
+    "markup.link.url":       { fg: C.blue },
+    "markup.link.label":     { fg: C.cyan },
+
+    // Quote
+    "markup.quote":          { fg: C.gray },
+
+    // Horizontal rule / separator
+    "markup.separator":      { fg: C.gray2 },
   })
 }
 
 let _style: SyntaxStyle | null = null
 export function getMonokaiStyle(): SyntaxStyle {
+  // Selalu buat fresh — tidak cache, supaya markup styles selalu apply
   if (!_style) _style = createMonokaiStyle()
   return _style
 }
