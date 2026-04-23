@@ -111,6 +111,20 @@ function SystemMsg(props: { content: string }) {
 }
 
 // ── AI message ────────────────────────────────────────────────────────────────
+
+function stripEditBlocks(content: string): string {
+  // Remove SEARCH/REPLACE blocks (<<<<<<< SEARCH ... >>>>>>> REPLACE)
+  let out = content.replace(/^.*\n?<<<<<<< SEARCH[\s\S]*?>>>>>>> REPLACE[^\n]*/gm, "")
+  // Remove <file path="...">...</file> blocks
+  out = out.replace(/<file\s[^>]*>[\s\S]*?<\/file>/g, "")
+  // Remove bare file paths on their own line (e.g. /root/minimal/min/tests/TEST.md)
+  out = out.replace(/^\/[^\n]+\.(md|py|ts|tsx|js|jsx|json|yaml|yml|toml|sh|txt|go|rs|c|cpp)\s*$/gm, "")
+  // Remove ```diff blocks (shown in diff renderable already)
+  out = out.replace(/```(?:diff|udiff)[^`]*```/gs, "")
+  // Collapse 3+ blank lines to 2
+  out = out.replace(/\n{3,}/g, "\n\n")
+  return out.trim()
+}
 function AiMsg(props: { msg: Message }) {
   const syntaxStyle = getMonokaiStyle()
 
@@ -126,7 +140,7 @@ function AiMsg(props: { msg: Message }) {
     >
       {/* Content — markdown dengan syntax highlight */}
       <markdown
-        content={props.msg.content}
+        content={stripEditBlocks(props.msg.content)}
         syntaxStyle={syntaxStyle}
         fg={C.white}
         streaming={!props.msg.done}

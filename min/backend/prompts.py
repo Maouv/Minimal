@@ -28,8 +28,11 @@ def edit_system_prompt(mode: EditMode, editable_files: dict[str, str]) -> str:
 Editable files:
 {file_list}
 
-After applying edits, briefly explain what you changed and why.
-Only edit files listed above. Do not create new files unless explicitly asked."""
+IMPORTANT — response structure:
+1. Output ONLY the edit block(s) — no preamble, no explanation before the edit
+2. After the edit block(s), write ONE short sentence confirming what was changed (e.g. "Changed paragraph 3 to describe aerodynamics more concisely.")
+3. Do NOT show file contents, do NOT explain what you are about to do, do NOT think out loud
+4. Do NOT use <file path="..."> or any XML tags — ever"""
 
     if mode == "block":
         return base + _editblock_instructions(file_paths)
