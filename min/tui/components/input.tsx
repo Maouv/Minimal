@@ -83,39 +83,32 @@ export function InputBox() {
 
   useKeyboard((key) => {
     if (acItems().length === 0) return
-    if (key.name === "up")   { setAcSelected(s => Math.max(0, s - 1)); return }
-    if (key.name === "down") { setAcSelected(s => Math.min(acItems().length - 1, s + 1)); return }
-    if (key.name === "tab") {
-      if (acMode() === "file") { insertFile(); return }
-      completeSelected(); return
-    }
+    if (key.name === "up")    { key.preventDefault(); setAcSelected(s => Math.max(0, s - 1)); return }
+    if (key.name === "down")  { key.preventDefault(); setAcSelected(s => Math.min(acItems().length - 1, s + 1)); return }
+    if (key.name === "tab")   { key.preventDefault(); completeSelected(); return }
+    if (key.name === "escape"){ key.preventDefault(); setAcItems([]); return }
     if (key.name === "return") {
-      if (acMode() === "command") { completeSelected(); return }
+      if (acMode() === "command") { key.preventDefault(); completeSelected(); return }
       if (acMode() === "file") {
-        // Cek pattern terakhir di input — kalau kosong berarti user sudah
-        // selesai batch dan mau submit, biarkan fall through ke handleSubmit
         const val = inputRef?.value ?? ""
         const addCmd = ["/add -r ", "/add "].find(p => val.startsWith(p))
-        if (addCmd) {
-          const afterCmd = val.slice(addCmd.length)
-          const lastToken = afterCmd.split(" ").pop() ?? ""
-          if (lastToken !== "") { insertFile(); return }
-          // lastToken kosong = trailing space = user done → dismiss list, submit
-          setAcItems([])
-          // fall through ke handleSubmit via onSubmit event
+        const lastToken = addCmd
+          ? val.slice(addCmd.length).split(" ").pop() ?? ""
+          : ""
+        if (lastToken !== "") {
+          key.preventDefault()  // pattern ada → pilih file, block onSubmit
+          insertFile()
+          return
         }
+        // lastToken kosong (trailing space) → dismiss list, biarkan onSubmit fire
+        setAcItems([])
       }
     }
-    if (key.name === "escape") { setAcItems([]); return }
   })
 
   async function handleSubmit(value: string) {
-    if (acItems().length > 0) {
-      // Command mode masih bisa complete via handleSubmit kalau useKeyboard tidak intercept
-      if (acMode() === "command") { completeSelected(); return }
-      // File mode: seharusnya sudah di-handle di useKeyboard
-      // Kalau sampai sini berarti acItems sudah di-dismiss, lanjut submit
-    }
+    // acItems sudah di-handle sepenuhnya via useKeyboard + preventDefault
+    // handleSubmit hanya dipanggil saat benar-benar mau submit
     const raw = value.trim()
     if (!raw) return
 
