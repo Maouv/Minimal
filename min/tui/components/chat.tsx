@@ -181,7 +181,8 @@ function DiffBlock(props: { diff: string; file: string }) {
   )
 }
 
-
+// ── AI message ────────────────────────────────────────────────────────────────
+function AiMsg(props: { msg: Message }) {
   const syntaxStyle = getMonokaiStyle()
 
   // Freeze content setelah done — completed messages tidak re-render
