@@ -141,8 +141,8 @@ export async function listProviders(): Promise<Provider[]> {
   return data.providers
 }
 
-export async function probeProvider(base_url: string, api_key: string): Promise<ProbeResult> {
-  return req("POST", "/providers/probe", { base_url, api_key })
+export async function probeProvider(base_url: string, api_key: string, provider_name?: string): Promise<ProbeResult> {
+  return req("POST", "/providers/probe", { base_url, api_key, ...(provider_name ? { provider_name } : {}) })
 }
 
 export async function addProvider(name: string, base_url: string, api_key: string): Promise<void> {

@@ -71,18 +71,24 @@ async def list_providers():
 async def probe_provider(req: dict):
     """
     Probe /v1/models dari base_url + api_key.
-    api_key "__from_env__" → pakai LLM_API_KEY dari .env (untuk existing provider).
+    api_key "__from_env__" → pakai API key dari .env (untuk existing provider).
+    Lookup by provider_name dulu (jika dikirim), fallback ke base_url.
     """
     from probe_models import probe
     base_url = req.get("base_url", "").strip()
     api_key = req.get("api_key", "").strip()
+    provider_name = req.get("provider_name", "").strip()
     if not base_url or not api_key:
         raise HTTPException(status_code=400, detail="base_url and api_key required")
     # Resolve __from_env__ ke actual key
     if api_key == "__from_env__":
-        # Cari provider yang cocok base_url-nya, ambil env_key-nya
         providers = config.load_providers()
-        provider = next((p for p in providers if p["base_url"] == base_url), None)
+        # Prioritaskan lookup by name, fallback ke base_url
+        provider = None
+        if provider_name:
+            provider = next((p for p in providers if p["name"] == provider_name), None)
+        if not provider:
+            provider = next((p for p in providers if p["base_url"] == base_url), None)
         if provider:
             import os
             api_key = os.getenv(provider["env_key"], config.api_key())

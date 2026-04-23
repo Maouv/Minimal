@@ -109,7 +109,7 @@ export function ModelPicker(props: Props) {
     const providerName = activeProvider()?.name ?? newName()
     setPhase("loading")
     setLoadingMsg(`Fetching models${providerName ? ` from ${providerName}` : ""}...`)
-    const result = await probeProvider(baseUrl, apiKey)
+    const result = await probeProvider(baseUrl, apiKey, providerName || undefined)
     if (result.ok && result.models.length > 0) {
       setModelList(result.models); setManualMode(false)
       setFilter(""); setSelIdx(0); setError(""); setPhase("model-select")
