@@ -1,8 +1,12 @@
 // model-picker.tsx — overlay melayang di atas input bar
 // mode="switch" → list providers → probe → pilih model → switch
 // mode="add"    → list providers + "+ New" → existing: probe → model / new: base URL → API key → model
+//
+// PENTING: Semua fase yang butuh input teks memakai SATU <input> yang selalu mounted.
+// Kalau pakai <Show> per-fase, @opentui destroyRecursively() jalan async (nextTick)
+// sedangkan onSubmit masih bisa firing sebelum cleanup selesai → renderer crash.
 
-import { createSignal, For, Show, onMount } from "solid-js"
+import { createSignal, For, Show, onMount, createMemo } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import type { InputRenderable } from "@opentui/core"
 import { setState } from "../state.ts"
@@ -36,22 +40,45 @@ export function ModelPicker(props: Props) {
   const [activeProvider, setActiveProvider] = createSignal<Provider | null>(null)
   const [manualMode, setManualMode] = createSignal(false)
 
-  let refBaseUrl: InputRenderable | undefined
-  let refApiKey: InputRenderable | undefined
-  let refModelFilter: InputRenderable | undefined
-  let refManualModel: InputRenderable | undefined
+  // Satu ref untuk satu input yang selalu mounted — tidak pernah unmount/remount
+  let inputRef: InputRenderable | undefined
+
+  // Apakah fase ini butuh input teks?
+  const needsInput = createMemo(() => {
+    const ph = phase()
+    return ph === "new-baseurl" || ph === "new-apikey" || ph === "model-select"
+  })
+
+  // Label di atas input berdasarkan fase
+  const inputLabel = createMemo(() => {
+    switch (phase()) {
+      case "new-baseurl": return "Base URL"
+      case "new-apikey":  return `API Key  ${newBaseUrl()}`
+      case "model-select": return manualMode() ? `Model ID  ${error()}` : ""
+      default: return ""
+    }
+  })
+
+  // Placeholder input berdasarkan fase
+  const inputPlaceholder = createMemo(() => {
+    switch (phase()) {
+      case "new-baseurl":  return "https://openrouter.ai/api/v1"
+      case "new-apikey":   return "sk-or-v1-..."
+      case "model-select": return manualMode() ? "openai/gpt-4o" : "filter model..."
+      default: return ""
+    }
+  })
 
   onMount(() => {
     listProviders().then(p => {
       setProviders(p)
-      // Kalau switch mode dan tidak ada provider, langsung ke add new
-      if (props.mode === "switch" && p.length === 0) setPhase("new-baseurl")
+      if (props.mode === "switch" && p.length === 0) {
+        setPhase("new-baseurl")
+        setTimeout(() => inputRef?.focus?.(), 50)
+      }
     }).catch(() => setProviders([]))
   })
 
-  // provider-list items:
-  // switch mode → hanya existing providers
-  // add mode    → "+ New provider" + existing providers
   const listItems = () => {
     const existing = providers().map(p => ({ label: p.name, desc: p.base_url, isNew: false, provider: p }))
     if (props.mode === "add") {
@@ -82,7 +109,7 @@ export function ModelPicker(props: Props) {
         if (!item) return
         if (item.isNew) {
           setPhase("new-baseurl"); setError("")
-          setTimeout(() => refBaseUrl?.focus?.(), 50)
+          setTimeout(() => inputRef?.focus?.(), 50)
         } else {
           setActiveProvider(item.provider)
           setNewApiKey("")
@@ -116,11 +143,12 @@ export function ModelPicker(props: Props) {
     if (result.ok && result.models.length > 0) {
       setModelList(result.models); setManualMode(false)
       setFilter(""); setSelIdx(0); setError(""); setPhase("model-select")
+      setTimeout(() => inputRef?.focus?.(), 50)
     } else {
       setManualMode(true); setModelList([])
       setError(result.error ?? "Provider tidak support /v1/models")
       setPhase("model-select")
-      setTimeout(() => refManualModel?.focus?.(), 50)
+      setTimeout(() => inputRef?.focus?.(), 50)
     }
   }
 
@@ -132,18 +160,46 @@ export function ModelPicker(props: Props) {
     try { return new URL(url).hostname.replace(/^www\./, "") } catch { return url }
   }
 
-  async function _submitBaseUrl(val: string) {
-    const url = val.trim(); if (!url) return
-    setNewBaseUrl(url); setNewName(_deriveNameFromUrl(url))
-    setPhase("new-apikey"); setError("")
-    setTimeout(() => refApiKey?.focus?.(), 50)
+  // Handler tunggal untuk onSubmit — dispatch berdasarkan fase saat itu
+  async function _handleSubmit(val: string) {
+    const ph = phase()
+
+    if (ph === "new-baseurl") {
+      const url = val.trim(); if (!url) return
+      setNewBaseUrl(url); setNewName(_deriveNameFromUrl(url))
+      // Reset nilai input sebelum ganti fase — input node TIDAK unmount
+      if (inputRef) inputRef.value = ""
+      setPhase("new-apikey"); setError("")
+      return
+    }
+
+    if (ph === "new-apikey") {
+      const key = val.trim(); if (!key) return
+      setNewApiKey(key)
+      setActiveProvider({ name: newName(), base_url: newBaseUrl(), env_key: "" })
+      if (inputRef) inputRef.value = ""
+      await _probe(newBaseUrl(), key)
+      return
+    }
+
+    if (ph === "model-select" && manualMode()) {
+      const modelId = val.trim(); if (!modelId) return
+      await _selectModel(modelId)
+      return
+    }
+
+    if (ph === "model-select" && !manualMode()) {
+      const m = filteredModels()[selIdx()]
+      if (m) await _selectModel(m)
+      return
+    }
   }
 
-  async function _submitApiKey(val: string) {
-    const key = val.trim(); if (!key) return
-    setNewApiKey(key)
-    setActiveProvider({ name: newName(), base_url: newBaseUrl(), env_key: "" })
-    await _probe(newBaseUrl(), key)
+  // Handler onInput — hanya relevan di fase model-select filter
+  function _handleInput(val: string) {
+    if (phase() === "model-select" && !manualMode()) {
+      setFilter(val); setSelIdx(0)
+    }
   }
 
   async function _selectModel(modelId: string) {
@@ -157,13 +213,8 @@ export function ModelPicker(props: Props) {
     } catch (e) {
       setError(String(e))
       setPhase("model-select")
-      setTimeout(() => manualMode() ? refManualModel?.focus?.() : refModelFilter?.focus?.(), 50)
+      setTimeout(() => inputRef?.focus?.(), 50)
     }
-  }
-
-  async function _submitManualModel(val: string) {
-    const modelId = val.trim(); if (!modelId) return
-    await _selectModel(modelId)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -197,69 +248,45 @@ export function ModelPicker(props: Props) {
           </Show>
         </Show>
 
-        {/* Base URL */}
-        <Show when={phase() === "new-baseurl"}>
-          <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
-            <text fg={C.gray} marginBottom={1}>Base URL</text>
-            <input ref={refBaseUrl} flexGrow={1}
-              placeholder="https://openrouter.ai/api/v1" placeholderColor={C.gray2}
-              backgroundColor={C.bg2} textColor={C.white}
-              focusedBackgroundColor={C.bg3} focusedTextColor={C.white}
-              focused onSubmit={(val: string) => _submitBaseUrl(val)} />
-            <Show when={error()}><text fg={C.pink} marginTop={1}>{error()}</text></Show>
-          </box>
-        </Show>
-
-        {/* API Key */}
-        <Show when={phase() === "new-apikey"}>
-          <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
-            <text fg={C.gray} marginBottom={1}>API Key  <text fg={C.gray2}>{newBaseUrl()}</text></text>
-            <input ref={refApiKey} flexGrow={1}
-              placeholder="sk-or-v1-..." placeholderColor={C.gray2}
-              backgroundColor={C.bg2} textColor={C.white}
-              focusedBackgroundColor={C.bg3} focusedTextColor={C.white}
-              focused onSubmit={(val: string) => _submitApiKey(val)} />
-            <Show when={error()}><text fg={C.pink} marginTop={1}>{error()}</text></Show>
-          </box>
-        </Show>
-
-        {/* Model list + filter */}
+        {/* Model list (fase model-select, bukan manual) */}
         <Show when={phase() === "model-select" && !manualMode()}>
-          <box width="100%" flexDirection="column">
-            <box width="100%" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
-              <input ref={refModelFilter} flexGrow={1}
-                placeholder="filter model..." placeholderColor={C.gray2}
-                backgroundColor={C.bg2} textColor={C.white}
-                focusedBackgroundColor={C.bg2} focusedTextColor={C.white}
-                focused
-                onInput={(val: string) => { setFilter(val); setSelIdx(0) }}
-                onSubmit={() => { const m = filteredModels()[selIdx()]; if (m) _selectModel(m) }} />
-            </box>
-            <For each={filteredModels()}>
-              {(model, i) => (
-                <box width="100%" flexDirection="row" height={1} paddingLeft={2} paddingRight={2}
-                  backgroundColor={i() === selIdx() ? C.bg3 : C.bg2}>
-                  <text fg={C.orange} flexGrow={1}>{model}</text>
-                </box>
-              )}
-            </For>
-            <Show when={modelList().length > MAX_VISIBLE}>
-              <box height={1} paddingLeft={2} paddingBottom={1}>
-                <text fg={C.gray2}>{`${modelList().length - filteredModels().length} more — ketik untuk filter`}</text>
+          <For each={filteredModels()}>
+            {(model, i) => (
+              <box width="100%" flexDirection="row" height={1} paddingLeft={2} paddingRight={2}
+                backgroundColor={i() === selIdx() ? C.bg3 : C.bg2}>
+                <text fg={C.orange} flexGrow={1}>{model}</text>
               </box>
-            </Show>
-          </box>
+            )}
+          </For>
+          <Show when={modelList().length > MAX_VISIBLE}>
+            <box height={1} paddingLeft={2} paddingBottom={1}>
+              <text fg={C.gray2}>{`${modelList().length - filteredModels().length} more — ketik untuk filter`}</text>
+            </box>
+          </Show>
         </Show>
 
-        {/* Manual fallback */}
-        <Show when={phase() === "model-select" && manualMode()}>
+        {/* SATU input — selalu mounted selama needsInput() true, tidak pernah berganti node */}
+        <Show when={needsInput()}>
           <box width="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
-            <text fg={C.gray} marginBottom={1}>Model ID  <text fg={C.pink}>{error()}</text></text>
-            <input ref={refManualModel} flexGrow={1}
-              placeholder="openai/gpt-4o" placeholderColor={C.gray2}
-              backgroundColor={C.bg2} textColor={C.white}
-              focusedBackgroundColor={C.bg3} focusedTextColor={C.white}
-              focused onSubmit={(val: string) => _submitManualModel(val)} />
+            <Show when={inputLabel()}>
+              <text fg={C.gray} marginBottom={1}>{inputLabel()}</text>
+            </Show>
+            <input
+              ref={inputRef}
+              flexGrow={1}
+              placeholder={inputPlaceholder()}
+              placeholderColor={C.gray2}
+              backgroundColor={C.bg2}
+              textColor={C.white}
+              focusedBackgroundColor={C.bg3}
+              focusedTextColor={C.white}
+              focused
+              onInput={(val: string) => _handleInput(val)}
+              onSubmit={(val: string) => _handleSubmit(val)}
+            />
+            <Show when={error() && phase() !== "model-select"}>
+              <text fg={C.pink} marginTop={1}>{error()}</text>
+            </Show>
           </box>
         </Show>
 
