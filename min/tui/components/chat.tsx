@@ -125,8 +125,14 @@ function stripEditBlocks(content: string): string {
   out = out.replace(/\n{3,}/g, "\n\n")
   return out.trim()
 }
+
 function AiMsg(props: { msg: Message }) {
   const syntaxStyle = getMonokaiStyle()
+
+  // Freeze content setelah done — completed messages tidak re-render
+  // Saat streaming: content reactive. Setelah done: memo tidak pernah berubah.
+  const content = createMemo(() => stripEditBlocks(props.msg.content))
+  const isDone = createMemo(() => props.msg.done)
 
   return (
     <box
@@ -140,15 +146,15 @@ function AiMsg(props: { msg: Message }) {
     >
       {/* Content — markdown dengan syntax highlight */}
       <markdown
-        content={stripEditBlocks(props.msg.content)}
+        content={content()}
         syntaxStyle={syntaxStyle}
         fg={C.white}
-        streaming={!props.msg.done}
+        streaming={!isDone()}
         width="100%"
       />
 
-      {/* Diff blocks */}
-      <Show when={props.msg.done && props.msg.edits && props.msg.edits!.length > 0}>
+      {/* Diff blocks — hanya render setelah done */}
+      <Show when={isDone() && props.msg.edits && props.msg.edits!.length > 0}>
         <For each={props.msg.edits}>
           {(edit) => {
             const added   = (edit.diff.match(/^\+[^+]/mg) ?? []).length
@@ -206,8 +212,19 @@ function AiMsg(props: { msg: Message }) {
 }
 
 // ── Chat view ─────────────────────────────────────────────────────────────────
+const MESSAGE_CAP = 50  // max message di DOM sekaligus
+
 export function ChatView() {
   const hasMessages = createMemo(() => state.messages.length > 0)
+
+  // Hanya render MESSAGE_CAP message terakhir.
+  // Semua message tetap ada di state (tidak hilang), tapi
+  // yang lama tidak di-mount ke DOM → tidak ada layout cost.
+  const visibleMessages = createMemo(() => {
+    const msgs = state.messages
+    if (msgs.length <= MESSAGE_CAP) return msgs
+    return msgs.slice(msgs.length - MESSAGE_CAP)
+  })
 
   return (
     <scrollbox
@@ -221,7 +238,7 @@ export function ChatView() {
         <Show when={!hasMessages()}>
           <EmptyState />
         </Show>
-        <For each={state.messages}>
+        <For each={visibleMessages()}>
           {(msg) => (
             <Show
               when={msg.role === "user"}
