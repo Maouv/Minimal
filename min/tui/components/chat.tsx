@@ -168,8 +168,9 @@ function AiMsg(props: { msg: Message }) {
                 marginRight={1}
                 border
                 borderColor={C.border}
+                overflow="hidden"
               >
-                {/* diff-top */}
+                {/* diff header */}
                 <box
                   width="100%"
                   flexDirection="row"
@@ -177,12 +178,13 @@ function AiMsg(props: { msg: Message }) {
                   paddingLeft={1}
                   paddingRight={1}
                   backgroundColor={C.bg2}
+                  overflow="hidden"
                 >
-                  <text fg={C.cyan}>{edit.file}</text>
+                  <text fg={C.cyan} flexShrink={1} flexGrow={0}>{edit.file.split("/").pop()}</text>
                   <text fg={C.gray2}>{`  +${added} -${removed}`}</text>
                   <box flexGrow={1} />
-                  <text fg={C.gray}>
-                    {edit.success ? `Applied to ${edit.file}` : (edit.error ?? "failed")}
+                  <text fg={edit.success ? C.green : C.pink} flexShrink={0}>
+                    {edit.success ? "applied" : (edit.error ?? "failed")}
                   </text>
                 </box>
                 {/* diff body */}
@@ -233,6 +235,14 @@ export function ChatView() {
       stickyScroll
       stickyStart="bottom"
       backgroundColor={C.bg}
+      scrollbarOptions={{
+        verticalScrollbarOptions: {
+          trackOptions: {
+            foregroundColor: C.bg,
+            backgroundColor: C.bg,
+          },
+        },
+      }}
     >
       <box width="100%" flexDirection="column">
         <Show when={!hasMessages()}>
