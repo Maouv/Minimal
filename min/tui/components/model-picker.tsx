@@ -82,6 +82,9 @@ export function ModelPicker(props: Props) {
           setTimeout(() => inputRef?.focus?.(), 50)
         } else {
           setActiveProvider(item.provider)
+          setNewApiKey("")
+          setNewName("")
+          setNewBaseUrl("")
           _probe(item.provider.base_url, "__from_env__")
         }
         return
