@@ -93,23 +93,6 @@ function UserMsg(props: { content: string }) {
   )
 }
 
-// ── System message ────────────────────────────────────────────────────────────
-// Untuk output /run, /undo, /diff, /commit — monospace, dim
-function SystemMsg(props: { content: string }) {
-  return (
-    <box
-      width="100%"
-      paddingLeft={3}
-      paddingRight={3}
-      paddingTop={1}
-      paddingBottom={1}
-      backgroundColor={C.bg}
-    >
-      <text fg={C.gray} flexWrap="wrap">{props.content}</text>
-    </box>
-  )
-}
-
 // ── AI message ────────────────────────────────────────────────────────────────
 function AiMsg(props: { msg: Message }) {
   const syntaxStyle = getMonokaiStyle()
@@ -173,7 +156,7 @@ function AiMsg(props: { msg: Message }) {
                     view="unified"
                     filetype={fileExtension(edit.file)}
                     syntaxStyle={syntaxStyle}
-                    showLineNumbers={false}
+                    showLineNumbers={true}
                     fg={C.white}
                     addedBg="#0d1a00"
                     removedBg="#1a0009"
@@ -211,14 +194,7 @@ export function ChatView() {
           {(msg) => (
             <Show
               when={msg.role === "user"}
-              fallback={
-                <Show
-                  when={msg.role === "system"}
-                  fallback={<AiMsg msg={msg} />}
-                >
-                  <SystemMsg content={msg.content} />
-                </Show>
-              }
+              fallback={<AiMsg msg={msg} />}
             >
               <UserMsg content={msg.content} />
             </Show>
