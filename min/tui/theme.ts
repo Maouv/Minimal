@@ -1,5 +1,5 @@
 // theme.ts — color palette sesuai Minimal-tui.html
-import { SyntaxStyle } from "@opentui/core"
+import { SyntaxStyle, RGBA } from "@opentui/core"
 
 export const C = {
   bg:     "#0d0d0d",
@@ -26,82 +26,68 @@ export const MODE_COLOR: Record<string, string> = {
   "edit-whole": C.pink,
 }
 
+const r = (hex: string) => RGBA.fromHex(hex)
+
 export function createMonokaiStyle(): SyntaxStyle {
   return SyntaxStyle.fromStyles({
     // ── Code syntax ────────────────────────────────────────────────────────
-    "keyword":               { fg: C.pink },
-    "keyword.control":       { fg: C.pink },
-    "keyword.return":        { fg: C.pink },
-    "keyword.import":        { fg: C.pink },
-    "string":                { fg: "#e6db74" },
-    "string.special":        { fg: "#e6db74" },
-    "number":                { fg: C.purple },
-    "float":                 { fg: C.purple },
-    "boolean":               { fg: C.purple },
-    "constant":              { fg: C.purple },
-    "constant.builtin":      { fg: C.purple },
-    "function":              { fg: C.green },
-    "function.call":         { fg: C.green },
-    "function.method":       { fg: C.green },
-    "function.builtin":      { fg: C.cyan },
-    "type":                  { fg: C.cyan },
-    "type.builtin":          { fg: C.cyan },
-    "variable":              { fg: C.white },
-    "variable.builtin":      { fg: C.orange },
-    "variable.parameter":    { fg: C.orange },
-    "operator":              { fg: C.pink },
-    "punctuation":           { fg: C.white },
-    "comment":               { fg: C.gray, italic: true },
-    "comment.line":          { fg: C.gray, italic: true },
-    "tag":                   { fg: C.pink },
-    "attribute":             { fg: C.green },
-    "escape":                { fg: C.cyan },
-    "conceal":               { fg: C.gray },
+    "keyword":               { fg: r(C.pink) },
+    "keyword.control":       { fg: r(C.pink) },
+    "keyword.return":        { fg: r(C.pink) },
+    "keyword.import":        { fg: r(C.pink) },
+    "string":                { fg: r("#e6db74") },
+    "string.special":        { fg: r("#e6db74") },
+    "number":                { fg: r(C.purple) },
+    "float":                 { fg: r(C.purple) },
+    "boolean":               { fg: r(C.purple) },
+    "constant":              { fg: r(C.purple) },
+    "constant.builtin":      { fg: r(C.purple) },
+    "function":              { fg: r(C.green) },
+    "function.call":         { fg: r(C.green) },
+    "function.method":       { fg: r(C.green) },
+    "function.builtin":      { fg: r(C.cyan) },
+    "type":                  { fg: r(C.cyan) },
+    "type.builtin":          { fg: r(C.cyan) },
+    "variable":              { fg: r(C.white) },
+    "variable.builtin":      { fg: r(C.orange) },
+    "variable.parameter":    { fg: r(C.orange) },
+    "operator":              { fg: r(C.pink) },
+    "punctuation":           { fg: r(C.white) },
+    "comment":               { fg: r(C.gray), italic: true },
+    "comment.line":          { fg: r(C.gray), italic: true },
+    "tag":                   { fg: r(C.pink) },
+    "attribute":             { fg: r(C.green) },
+    "escape":                { fg: r(C.cyan) },
+    "conceal":               { fg: r(C.gray) },
 
     // ── Markdown markup ────────────────────────────────────────────────────
-    // Headers — makin tinggi level makin terang
-    "markup.heading":        { fg: C.blue },
-    "markup.heading.1":      { fg: C.blue },
-    "markup.heading.2":      { fg: C.cyan },
-    "markup.heading.3":      { fg: C.green },
-    "markup.heading.4":      { fg: C.orange },
-    "markup.heading.5":      { fg: C.purple },
-    "markup.heading.6":      { fg: C.gray },
-
-    // Bold — orange supaya kelihatan berbeda
-    "markup.bold":           { fg: C.orange },
-    "markup.strong":         { fg: C.orange },
-
-    // Italic — purple
-    "markup.italic":         { fg: C.purple },
-    "markup.emphasis":       { fg: C.purple },
-
-    // Inline code — kuning + bg gelap
-    "markup.raw":            { fg: "#e6db74" },
-    "markup.raw.inline":     { fg: "#e6db74" },
-    "markup.raw.block":      { fg: "#e6db74" },
-
-    // List markers
-    "markup.list":           { fg: C.cyan },
-    "markup.list.bullet":    { fg: C.cyan },
-    "markup.list.numbered":  { fg: C.cyan },
-
-    // Links
-    "markup.link":           { fg: C.blue },
-    "markup.link.url":       { fg: C.blue },
-    "markup.link.label":     { fg: C.cyan },
-
-    // Quote
-    "markup.quote":          { fg: C.gray },
-
-    // Horizontal rule / separator
-    "markup.separator":      { fg: C.gray2 },
+    "markup.heading":        { fg: r(C.blue) },
+    "markup.heading.1":      { fg: r(C.blue) },
+    "markup.heading.2":      { fg: r(C.cyan) },
+    "markup.heading.3":      { fg: r(C.green) },
+    "markup.heading.4":      { fg: r(C.orange) },
+    "markup.heading.5":      { fg: r(C.purple) },
+    "markup.heading.6":      { fg: r(C.gray) },
+    "markup.bold":           { fg: r(C.orange) },
+    "markup.strong":         { fg: r(C.orange) },
+    "markup.italic":         { fg: r(C.purple) },
+    "markup.emphasis":       { fg: r(C.purple) },
+    "markup.raw":            { fg: r("#e6db74") },
+    "markup.raw.inline":     { fg: r("#e6db74") },
+    "markup.raw.block":      { fg: r("#e6db74") },
+    "markup.list":           { fg: r(C.cyan) },
+    "markup.list.bullet":    { fg: r(C.cyan) },
+    "markup.list.numbered":  { fg: r(C.cyan) },
+    "markup.link":           { fg: r(C.blue) },
+    "markup.link.url":       { fg: r(C.blue) },
+    "markup.link.label":     { fg: r(C.cyan) },
+    "markup.quote":          { fg: r(C.gray) },
+    "markup.separator":      { fg: r(C.gray2) },
   })
 }
 
 let _style: SyntaxStyle | null = null
 export function getMonokaiStyle(): SyntaxStyle {
-  // Selalu buat fresh — tidak cache, supaya markup styles selalu apply
   if (!_style) _style = createMonokaiStyle()
   return _style
 }

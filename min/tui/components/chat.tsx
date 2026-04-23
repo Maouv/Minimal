@@ -204,6 +204,7 @@ function AiMsg(props: { msg: Message }) {
       <markdown
         content={content()}
         syntaxStyle={syntaxStyle}
+        conceal
         fg={C.white}
         streaming={!isDone()}
         width="100%"
