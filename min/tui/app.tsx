@@ -3,7 +3,8 @@ import { Show } from "solid-js"
 import { ChatView } from "./components/chat.tsx"
 import { InputBox } from "./components/input.tsx"
 import { CtxBar } from "./components/status.tsx"
-import { state } from "./state.ts"
+import { ModelPicker } from "./components/model-picker.tsx"
+import { state, setState } from "./state.ts"
 import { C } from "./theme.ts"
 
 const LOGO = [
@@ -57,7 +58,10 @@ export function App() {
         <ChatView />
       </Show>
       <CtxBar />
-      <InputBox />
+      {/* ModelPicker muncul di atas InputBox, replace slot yang sama */}
+      <Show when={state.showModelPicker} fallback={<InputBox />}>
+        <ModelPicker onDone={() => setState("showModelPicker", false)} />
+      </Show>
     </box>
   )
 }

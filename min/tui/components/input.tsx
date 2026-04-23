@@ -25,7 +25,7 @@ const SLASH_COMMANDS = [
   { cmd: "/commit",     desc: "git commit" },
   { cmd: "/run",        desc: "run shell command" },
   { cmd: "/tokens",     desc: "show token usage" },
-  { cmd: "/model",      desc: "switch model" },
+  { cmd: "/model",      desc: "switch / add model" },
   { cmd: "/help",       desc: "show help" },
 ]
 
@@ -111,6 +111,15 @@ export function InputBox() {
     // handleSubmit hanya dipanggil saat benar-benar mau submit
     const raw = value.trim()
     if (!raw) return
+
+    // /model atau /model add → buka ModelPicker overlay
+    if (raw === "/model" || raw === "/model add" || raw === "/model ") {
+      skipNextInput = true
+      if (inputRef) inputRef.value = ""
+      setAcItems([])
+      setState("showModelPicker", true)
+      return
+    }
 
     if (state.streaming) {
       if (state.sessionId) await abortSession(state.sessionId).catch(() => {})

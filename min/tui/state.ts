@@ -35,6 +35,7 @@ export interface AppState {
   inputTokens: number
   outputTokens: number
   error: string | null
+  showModelPicker: boolean
 }
 
 export const [state, setState] = createStore<AppState>({
@@ -48,6 +49,7 @@ export const [state, setState] = createStore<AppState>({
   inputTokens: 0,
   outputTokens: 0,
   error: null,
+  showModelPicker: false,
 })
 
 export function pushMessage(role: MessageRole, content = ""): number {

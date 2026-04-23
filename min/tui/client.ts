@@ -121,3 +121,35 @@ export interface ProjectFilesResponse {
 export async function listProjectFiles(): Promise<ProjectFilesResponse> {
   return req("GET", "/project/files")
 }
+
+// ── Providers ─────────────────────────────────────────────────────────────────
+
+export interface Provider {
+  name: string
+  base_url: string
+  env_key: string
+}
+
+export interface ProbeResult {
+  ok: boolean
+  models: string[]
+  error: string | null
+}
+
+export async function listProviders(): Promise<Provider[]> {
+  const data = await req<{ providers: Provider[] }>("GET", "/providers")
+  return data.providers
+}
+
+export async function probeProvider(base_url: string, api_key: string): Promise<ProbeResult> {
+  return req("POST", "/providers/probe", { base_url, api_key })
+}
+
+export async function addProvider(name: string, base_url: string, api_key: string): Promise<void> {
+  await req("POST", "/providers/add", { name, base_url, api_key })
+}
+
+export async function switchModel(provider_name: string, model_id: string): Promise<void> {
+  await req("POST", "/providers/switch", { provider_name, model_id })
+}
+

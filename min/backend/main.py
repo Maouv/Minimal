@@ -61,6 +61,73 @@ async def update_provider(req: ProviderUpdateRequest):
     return {"ok": True, "model": req.model}
 
 
+@app.get("/providers")
+async def list_providers():
+    """Return semua providers yang sudah disimpan."""
+    return {"providers": config.load_providers()}
+
+
+@app.post("/providers/probe")
+async def probe_provider(req: dict):
+    """
+    Probe /v1/models dari base_url + api_key.
+    api_key "__from_env__" → pakai LLM_API_KEY dari .env (untuk existing provider).
+    """
+    from probe_models import probe
+    base_url = req.get("base_url", "").strip()
+    api_key = req.get("api_key", "").strip()
+    if not base_url or not api_key:
+        raise HTTPException(status_code=400, detail="base_url and api_key required")
+    # Resolve __from_env__ ke actual key
+    if api_key == "__from_env__":
+        # Cari provider yang cocok base_url-nya, ambil env_key-nya
+        providers = config.load_providers()
+        provider = next((p for p in providers if p["base_url"] == base_url), None)
+        if provider:
+            import os
+            api_key = os.getenv(provider["env_key"], config.api_key())
+        else:
+            api_key = config.api_key()
+    result = await probe(base_url, api_key)
+    return result
+
+
+@app.post("/providers/add")
+async def add_provider(req: dict):
+    """
+    Tambah provider baru + simpan API key ke .env.
+    Body: { name, base_url, api_key }
+    """
+    name = req.get("name", "").strip()
+    base_url = req.get("base_url", "").strip()
+    api_key = req.get("api_key", "").strip()
+    if not name or not base_url or not api_key:
+        raise HTTPException(status_code=400, detail="name, base_url, api_key required")
+    entry = config.add_provider(name, base_url, api_key)
+    return {"ok": True, "provider": entry}
+
+
+@app.post("/providers/switch")
+async def switch_model(req: dict):
+    """
+    Switch active provider + model.
+    Body: { provider_name, model_id }
+    Update LLM_BASE_URL, LLM_API_KEY, LLM_MODEL di .env dan reload.
+    """
+    provider_name = req.get("provider_name", "").strip()
+    model_id = req.get("model_id", "").strip()
+    if not provider_name or not model_id:
+        raise HTTPException(status_code=400, detail="provider_name and model_id required")
+
+    providers = config.load_providers()
+    provider = next((p for p in providers if p["name"] == provider_name), None)
+    if not provider:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider_name}' not found")
+
+    config.switch_provider_model(provider, model_id)
+    return {"ok": True, "model": model_id, "base_url": provider["base_url"]}
+
+
 @app.get("/project/current")
 async def project_current():
     import os
