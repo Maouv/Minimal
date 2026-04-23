@@ -253,46 +253,36 @@ export function InputBox() {
       <box width="100%" backgroundColor={C.bg} paddingLeft={2} paddingRight={2} paddingBottom={2}>
         <box
           width="100%"
-          flexDirection="row"
-          alignItems="center"
+          flexDirection="column"
           backgroundColor={isDisabled() ? C.bg3 : C.bg2}
           paddingLeft={2}
           paddingRight={2}
           paddingTop={1}
           paddingBottom={1}
         >
-          <text fg={isDisabled() ? C.gray2 : C.blue} marginRight={1}>✦</text>
-          <input
-            ref={inputRef}
-            flexGrow={1}
-            placeholder={isDisabled() ? "" : 'Ask anything... "Whats the tech stack of this project?"'}
-            placeholderColor={C.gray2}
-            backgroundColor={isDisabled() ? C.bg3 : C.bg2}
-            textColor={isDisabled() ? C.gray2 : C.white}
-            focusedBackgroundColor={isDisabled() ? C.bg3 : C.bg2}
-            focusedTextColor={isDisabled() ? C.gray2 : C.white}
-            focused={!isDisabled()}
-            onInput={(val: string) => { if (!isDisabled()) handleInput(val) }}
-            onSubmit={(val: string) => { if (!isDisabled()) handleSubmit(val) }}
-          />
-        </box>
+          <box width="100%" flexDirection="row" alignItems="center" marginBottom={1}>
+            <text fg={isDisabled() ? C.gray2 : C.blue} marginRight={1}>✦</text>
+            <input
+              ref={inputRef}
+              flexGrow={1}
+              placeholder={isDisabled() ? "" : 'Ask anything... "Whats the tech stack of this project?"'}
+              placeholderColor={C.gray2}
+              backgroundColor={isDisabled() ? C.bg3 : C.bg2}
+              textColor={isDisabled() ? C.gray2 : C.white}
+              focusedBackgroundColor={isDisabled() ? C.bg3 : C.bg2}
+              focusedTextColor={isDisabled() ? C.gray2 : C.white}
+              focused={!isDisabled()}
+              onInput={(val: string) => { if (!isDisabled()) handleInput(val) }}
+              onSubmit={(val: string) => { if (!isDisabled()) handleSubmit(val) }}
+            />
+          </box>
 
-        {/* Gap separator */}
-        <box width="100%" height={1} backgroundColor={C.bg} />
-
-        {/* Meta: mode · model */}
-        <box
-          width="100%"
-          flexDirection="row"
-          backgroundColor={isDisabled() ? C.bg3 : C.bg2}
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={1}
-          paddingBottom={1}
-        >
-          <text fg={isDisabled() ? C.gray2 : modeColor()}>{isDisabled() ? "—" : modeLabel()}</text>
-          <text fg={C.gray2}>{" · "}</text>
-          <text fg={C.gray}>{state.model || "—"}</text>
+          {/* Meta: mode · model */}
+          <box width="100%" flexDirection="row">
+            <text fg={isDisabled() ? C.gray2 : modeColor()}>{isDisabled() ? "—" : modeLabel()}</text>
+            <text fg={C.gray2}>{" · "}</text>
+            <text fg={C.gray}>{state.model || "—"}</text>
+          </box>
         </box>
       </box>
     </box>
