@@ -234,10 +234,25 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         return
 
     if command.kind == "tokens":
-        yield sse("tokens", {
-            "context_tokens": s.context.total_tokens(),
-            "session_messages": len(s.messages),
-        })
+        from context import _estimate_tokens
+        context_tokens = s.context.total_tokens()
+        # Estimasi chat history tokens (semua messages di session)
+        chat_tokens = sum(
+            _estimate_tokens(m.get("content", ""))
+            for m in s.messages
+        )
+        # Estimasi system prompt: ~200 token base + context overhead
+        system_tokens = 200 + context_tokens // 10
+        total = context_tokens + chat_tokens + system_tokens
+        lines = [
+            "Token usage (estimated):",
+            f"  context files : {context_tokens:>7,}",
+            f"  chat history  : {chat_tokens:>7,}  ({len(s.messages)} messages)",
+            f"  system prompt : {system_tokens:>7,}",
+            f"  ─────────────────────",
+            f"  total         : {total:>7,}",
+        ]
+        yield sse("text", {"content": "\n".join(lines)})
         return
 
     if command.kind == "model":

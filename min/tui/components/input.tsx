@@ -56,7 +56,12 @@ export function InputBox() {
     if (!sel || !inputRef) return
     inputRef.value = sel.value
     setAcItems([])
-    handleInput(sel.value)
+    // Untuk command mode (bukan file), re-trigger handleInput supaya
+    // bisa lanjut autocomplete (e.g. user pilih /add, lalu muncul file list).
+    // Untuk file mode: TIDAK re-trigger — ini yang menyebabkan menu muncul lagi.
+    if (acMode() === "command") {
+      handleInput(sel.value)
+    }
   }
 
   useKeyboard((key) => {
@@ -84,7 +89,9 @@ export function InputBox() {
     setAcItems([])
 
     const isCommand = raw.startsWith("/")
-    if (!isCommand) pushMessage("user", raw)
+    // Edit commands dengan prompt tetap tampilkan sebagai user message
+    const isEditWithPrompt = /^\/(edit-block|edit-udiff|edit-whole)\s+\S/.test(raw)
+    if (!isCommand || isEditWithPrompt) pushMessage("user", raw)
 
     try {
       const response = await sendPrompt(state.sessionId, raw)
