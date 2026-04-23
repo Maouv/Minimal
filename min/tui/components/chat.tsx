@@ -115,43 +115,49 @@ function stripEditBlocks(content: string): string {
   return out.trim()
 }
 
-// ── Diff renderer — manual, supaya bisa flexWrap ─────────────────────────────
-// <diff> component opentui tidak support wrapping. Render sendiri per baris.
-function DiffLines(props: { diff: string }) {
-  const lines = () => props.diff
-    .split("\n")
-    .filter(l => !l.startsWith("---") && !l.startsWith("+++") && !l.startsWith("@@") && l !== "")
+// ── Diff renderer — horizontal scrollbox supaya tidak terpotong ──────────────
+function DiffBlock(props: { diff: string; file: string }) {
+  const syntaxStyle = getMonokaiStyle()
+  const ext = () => {
+    const e = props.file.split(".").pop()?.toLowerCase() ?? ""
+    const map: Record<string, string> = {
+      py: "python", ts: "typescript", tsx: "typescript",
+      js: "javascript", jsx: "javascript",
+      rs: "rust", go: "go", c: "c", cpp: "cpp",
+      json: "json", yaml: "yaml", yml: "yaml",
+      md: "markdown", sh: "bash", toml: "toml",
+    }
+    return map[e] ?? e
+  }
 
   return (
-    <box width="100%" flexDirection="column">
-      <For each={lines()}>
-        {(line) => {
-          const isAdded   = line.startsWith("+")
-          const isRemoved = line.startsWith("-")
-          const sign      = line[0]
-          const rest      = line.slice(1)
-          return (
-            <box
-              width="100%"
-              flexDirection="row"
-              backgroundColor={isAdded ? "#0d1a00" : isRemoved ? "#1a0009" : "transparent"}
-              paddingLeft={1}
-            >
-              <text fg={isAdded ? C.gdim : isRemoved ? C.pink : C.gray2} flexShrink={0}>
-                {isAdded || isRemoved ? sign : " "}
-              </text>
-              <text
-                fg={isAdded ? C.green : isRemoved ? C.pink : C.gray}
-                flexWrap="wrap"
-                flexGrow={1}
-              >
-                {rest}
-              </text>
-            </box>
-          )
-        }}
-      </For>
-    </box>
+    <scrollbox
+      width="100%"
+      scrollX
+      scrollbarOptions={{
+        horizontalScrollbarOptions: {
+          trackOptions: { foregroundColor: C.gray2, backgroundColor: C.bg2 },
+        },
+        verticalScrollbarOptions: {
+          trackOptions: { foregroundColor: C.bg, backgroundColor: C.bg },
+        },
+      }}
+    >
+      <diff
+        diff={props.diff}
+        width="100%"
+        view="unified"
+        filetype={ext()}
+        syntaxStyle={syntaxStyle}
+        showLineNumbers={false}
+        fg={C.white}
+        addedBg="#0d1a00"
+        removedBg="#1a0009"
+        contextBg={C.bg}
+        addedSignColor={C.gdim}
+        removedSignColor={C.pink}
+      />
+    </scrollbox>
   )
 }
 
@@ -216,9 +222,9 @@ function DiffLines(props: { diff: string }) {
                     {edit.success ? "applied" : (edit.error ?? "failed")}
                   </text>
                 </box>
-                {/* diff body */}
+                {/* diff body — horizontal scroll + syntax highlight */}
                 <Show when={edit.diff}>
-                  <DiffLines diff={edit.diff} />
+                  <DiffBlock diff={edit.diff} file={edit.file} />
                 </Show>
               </box>
             )
