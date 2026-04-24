@@ -142,7 +142,7 @@ async def project_current():
 
 @app.get("/project/files")
 async def project_files():
-    """Walk CWD + home dir, return all files (skip hidden + noise dirs)."""
+    """Walk CWD, return all files only (skip hidden + noise dirs)."""
     import os
     from pathlib import Path
 
@@ -171,6 +171,53 @@ async def project_files():
     cwd = Path(os.getcwd())
     files: list[str] = walk(cwd)
     return {"files": files, "cwd": str(cwd)}
+
+
+@app.get("/project/entries")
+async def project_entries(path: str = ""):
+    """
+    List immediate children (files + dirs) di path tertentu.
+    Default: CWD. Dipakai untuk autocomplete drill-down.
+    Returns: { entries: [{name, path, is_dir}], cwd }
+    """
+    import os
+    from pathlib import Path
+
+    SKIP_DIRS = {
+        ".git", "__pycache__", "node_modules", ".venv", "venv",
+        ".mypy_cache", ".ruff_cache", "dist", "build", ".next",
+        ".nuxt", "target", ".cargo",
+    }
+
+    cwd = Path(os.getcwd())
+    target = (cwd / path).resolve() if path else cwd
+
+    # Security: jangan keluar dari CWD
+    try:
+        target.relative_to(cwd)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path outside CWD")
+
+    if not target.is_dir():
+        raise HTTPException(status_code=400, detail="Not a directory")
+
+    entries = []
+    try:
+        for entry in sorted(target.iterdir()):
+            if entry.name.startswith(".") and entry.name not in {".env"}:
+                continue
+            if entry.is_dir() and entry.name in SKIP_DIRS:
+                continue
+            rel = str(entry.relative_to(cwd))
+            entries.append({
+                "name": entry.name + ("/" if entry.is_dir() else ""),
+                "path": rel + ("/" if entry.is_dir() else ""),
+                "is_dir": entry.is_dir(),
+            })
+    except PermissionError:
+        pass
+
+    return {"entries": entries, "cwd": str(cwd)}
 
 
 # --- Session ---

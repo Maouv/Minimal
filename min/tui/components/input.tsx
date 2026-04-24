@@ -6,7 +6,7 @@ import { createSignal, For, Show } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import type { InputRenderable } from "@opentui/core"
 import { state, setState, pushMessage } from "../state.ts"
-import { sendPrompt, abortSession, listProjectFiles } from "../client.ts"
+import { sendPrompt, abortSession, listProjectFiles, listProjectEntries } from "../client.ts"
 import { consumeStream } from "../stream.ts"
 import { C, MODE_COLOR } from "../theme.ts"
 
@@ -30,8 +30,8 @@ const SLASH_COMMANDS = [
   { cmd: "/help",       desc: "show help" },
 ]
 
-type AcMode = "command" | "file"
-interface AcItem { label: string; desc: string; value: string }
+type AcMode = "command" | "file" | "dir"
+interface AcItem { label: string; desc: string; value: string; is_dir?: boolean }
 
 export function InputBox() {
   const [acItems, setAcItems] = createSignal<AcItem[]>([])
@@ -51,6 +51,14 @@ export function InputBox() {
     } catch { fileCache = [] }
   }
 
+  // Drill-down entries untuk /add dan /init — list immediate children
+  async function loadEntries(dirPath: string): Promise<Array<{name: string, path: string, is_dir: boolean}>> {
+    try {
+      const res = await listProjectEntries(dirPath)
+      return res.entries
+    } catch { return [] }
+  }
+
   let skipNextInput = false
 
   // Untuk command mode: complete dan re-trigger handleInput
@@ -68,17 +76,15 @@ export function InputBox() {
   }
 
   // Untuk file mode: insert file ke input, refresh list untuk batch add
-  // TIDAK submit — user perlu Enter lagi (tanpa suggestion) untuk submit
+  // Kalau item adalah dir → drill-down (refresh list di dir tersebut)
+  // Kalau item adalah file → insert path, siap submit
   function insertFile() {
     const items = acItems()
     const sel = items[acSelected()]
     if (!sel || !inputRef) return
-    // sel.value sudah berupa "/add path/to/file " (trailing space)
-    skipNextInput = false  // kita MAU trigger handleInput untuk refresh list
+    skipNextInput = false
     inputRef.value = sel.value
     setAcSelected(0)
-    // handleInput akan dipanggil via onInput yang di-fire oleh set value
-    // Kalau opentui tidak fire onInput programmatically, panggil manual:
     handleInput(sel.value)
   }
 
@@ -90,18 +96,22 @@ export function InputBox() {
     if (key.name === "escape"){ key.preventDefault(); setAcItems([]); return }
     if (key.name === "return") {
       if (acMode() === "command") { key.preventDefault(); completeSelected(); return }
-      if (acMode() === "file") {
-        const val = inputRef?.value ?? ""
-        const addCmd = ["/add -r ", "/add "].find(p => val.startsWith(p))
-        const lastToken = addCmd
-          ? val.slice(addCmd.length).split(" ").pop() ?? ""
-          : ""
-        if (lastToken !== "") {
-          key.preventDefault()  // pattern ada → pilih file, block onSubmit
-          insertFile()
+      if (acMode() === "file" || acMode() === "dir") {
+        const items = acItems()
+        const sel = items[acSelected()]
+        if (sel) {
+          key.preventDefault()
+          if (sel.is_dir) {
+            // Dir dipilih → drill-down, jangan submit
+            insertFile()
+          } else {
+            // File dipilih → insert, dismiss list, siap submit
+            insertFile()
+            setAcItems([])
+          }
           return
         }
-        // lastToken kosong (trailing space) → dismiss list, biarkan onSubmit fire
+        // Tidak ada selection → dismiss list, biarkan onSubmit fire
         setAcItems([])
       }
     }
@@ -185,25 +195,32 @@ export function InputBox() {
       return
     }
 
-    // /add — dari filesystem CWD, batch support
+    // /add — drill-down entries, files only untuk insert, dirs untuk navigasi
     const addCmd = ["/add -r ", "/add "].find(p => value.startsWith(p))
     if (addCmd) {
-      await loadFileCache()
       const afterCmd = value.slice(addCmd.length)
       const tokens = afterCmd.split(" ")
-      const pattern = tokens[tokens.length - 1].toLowerCase()
-      const prefix = value.slice(0, value.length - pattern.length)
-      // File yang sudah ada di input (sebelum pattern terakhir) — exclude dari list
+      const lastToken = tokens[tokens.length - 1]
+      const prefix = value.slice(0, value.length - lastToken.length)
       const alreadyAdded = new Set(tokens.slice(0, -1).filter(Boolean))
-      const matches = fileCache
-        .filter(f => !alreadyAdded.has(f))
-        .filter(f => pattern === "" || f.toLowerCase().includes(pattern))
+
+      // Tentukan dir yang sedang di-browse dari lastToken
+      const lastSlash = lastToken.lastIndexOf("/")
+      const browseDir = lastSlash >= 0 ? lastToken.slice(0, lastSlash + 1) : ""
+      const filterName = lastToken.slice(lastSlash + 1).toLowerCase()
+
+      const rawEntries = await loadEntries(browseDir)
+      const matches = rawEntries
+        .filter(e => !alreadyAdded.has(e.path))
+        .filter(e => filterName === "" || e.name.toLowerCase().includes(filterName))
         .slice(0, 12)
-        .map(f => {
-          const parts = f.replace(/\\/g, "/").split("/")
-          const short = parts.slice(-2).join("/")
-          return { label: short, desc: f, value: prefix + f + " " }
-        })
+        .map(e => ({
+          label: e.name,          // "main.py" atau "backend/"
+          desc: e.path,
+          value: prefix + e.path, // dirs punya trailing /, files tidak
+          is_dir: e.is_dir,
+        }))
+
       setAcMode("file")
       setAcItems(matches)
       setAcSelected(0)

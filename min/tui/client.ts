@@ -122,6 +122,22 @@ export async function listProjectFiles(): Promise<ProjectFilesResponse> {
   return req("GET", "/project/files")
 }
 
+export interface ProjectEntry {
+  name: string   // display name, dirs have trailing /
+  path: string   // relative to CWD, dirs have trailing /
+  is_dir: boolean
+}
+
+export interface ProjectEntriesResponse {
+  entries: ProjectEntry[]
+  cwd: string
+}
+
+export async function listProjectEntries(path = ""): Promise<ProjectEntriesResponse> {
+  const q = path ? `?path=${encodeURIComponent(path)}` : ""
+  return req("GET", `/project/entries${q}`)
+}
+
 // ── Providers ─────────────────────────────────────────────────────────────────
 
 export interface Provider {
