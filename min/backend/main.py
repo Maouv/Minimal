@@ -27,6 +27,25 @@ import os
 from pathlib import Path
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    config.ensure()
+    yield
+
+
+app = FastAPI(title="minimal", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+# --- Health ---
+
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
+
+# --- Repo ---
+
 @app.post("/repo/map")
 async def repo_map(req: dict):
     """
@@ -80,23 +99,6 @@ def _build_init_context(ctx) -> str:
             parts.append(m["content"])
 
     return "\n".join(parts)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    config.ensure()
-    yield
-
-
-app = FastAPI(title="minimal", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-
-# --- Health ---
-
-@app.get("/health")
-async def health():
-    return {"ok": True}
 
 
 # --- Config ---
