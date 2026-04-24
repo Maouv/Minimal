@@ -3,3 +3,4 @@ venv/
 min/tests/test.txt
 min/tui/node_modules/
 min/tui/bun.lock
+*.bak
