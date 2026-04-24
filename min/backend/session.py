@@ -21,6 +21,8 @@ class Session:
         self.context = ContextManager()
         self.messages: list[dict] = []   # chat history (tanpa thinking)
         self.last_edit: list | None = None  # untuk /undo
+        self.last_init_draft: str | None = None
+        self.last_init_path:  str | None = None
         self._path = config.sessions_dir() / f"{session_id}.jsonl"
 
     # --- Persistence ---

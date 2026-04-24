@@ -23,6 +23,63 @@ from schemas import (
     PromptRequest, ContextAddRequest, ContextDropRequest, ContextListResponse,
 )
 from prompts import ask_system_prompt, edit_system_prompt
+import os
+from pathlib import Path
+
+
+@app.post("/repo/map")
+async def repo_map(req: dict):
+    """
+    Scan repo dari path tertentu dan return RepoContext.
+    Body: { path?: string }  — default CWD
+    Security: path di-resolve relatif ke CWD, tolak kalau keluar CWD.
+    """
+    import repo as repo_module
+
+    cwd = Path(os.getcwd())
+    raw_path = req.get("path", "").strip()
+    if raw_path:
+        candidate = (cwd / raw_path).resolve()
+        try:
+            candidate.relative_to(cwd)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Path outside CWD")
+        root = candidate
+    else:
+        root = cwd
+
+    ctx = repo_module.scan(root)
+    return ctx.__dict__
+
+
+def _build_init_context(ctx) -> str:
+    parts = []
+
+    if ctx.minimal_mds:
+        parts.append("=== EXISTING MINIMAL.md ===")
+        for md in ctx.minimal_mds:
+            parts.append(f"--- {md['path']} (depth {md['depth']}) ---")
+            parts.append(md["content"])
+
+    if ctx.repo_tags:
+        parts.append("=== @repo: TAGS ===")
+        for entry in ctx.repo_tags:
+            for tag in entry["tags"]:
+                parts.append(f"{entry['file']}: {tag}")
+
+    if ctx.symbols:
+        parts.append("=== REPO MAP ===")
+        for entry in ctx.symbols:
+            syms = ", ".join(entry["symbols"])
+            parts.append(f"{entry['file']}: {syms}")
+
+    if ctx.manifests:
+        parts.append("=== MANIFESTS ===")
+        for m in ctx.manifests:
+            parts.append(f"--- {m['file']} ---")
+            parts.append(m["content"])
+
+    return "\n".join(parts)
 
 
 @asynccontextmanager
@@ -411,6 +468,53 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     if command.kind == "model":
         s.model = config.resolve_model(command.args)
         yield sse("model", {"model": s.model})
+        return
+
+    if command.kind == "init":
+
+        if command.args == "--save":
+            if not s.last_init_draft:
+                yield sse("error", {"message": "Tidak ada draft. Jalankan /init dulu."})
+                yield sse("done", {"input_tokens": 0, "output_tokens": 0})
+                return
+            target = Path(s.last_init_path or os.getcwd()) / "MINIMAL.md"
+            target.write_text(s.last_init_draft, encoding="utf-8")
+            yield sse("text", {"content": f"✓ Saved to {target}"})
+            yield sse("done", {"input_tokens": 0, "output_tokens": 0})
+            return
+
+        # Resolve path — default CWD
+        root = Path(os.getcwd())
+        if command.args:
+            candidate = (root / command.args).resolve()
+            try:
+                candidate.relative_to(root)
+                root = candidate
+            except ValueError:
+                yield sse("error", {"message": "Path di luar project."})
+                yield sse("done", {"input_tokens": 0, "output_tokens": 0})
+                return
+
+        import repo as repo_module
+        ctx = repo_module.scan(root)
+        s.last_init_path = str(root)
+
+        context_str = _build_init_context(ctx)
+        import prompts
+        system = prompts.init_system()
+        messages = [{"role": "user", "content": context_str}]
+
+        full_response = ""
+        async for token, usage in llm.stream_chat(messages, s.model, system):
+            if token:
+                full_response += token
+                yield sse("token", {"content": token})
+            if usage:
+                s.last_init_draft = full_response
+                yield sse("done", {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                })
         return
 
     if command.kind == "ask":

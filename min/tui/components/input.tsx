@@ -28,6 +28,8 @@ const SLASH_COMMANDS = [
   { cmd: "/model",      desc: "switch model" },
   { cmd: "/model-add",  desc: "tambah provider & model baru" },
   { cmd: "/help",       desc: "show help" },
+  { cmd: "/init",       desc: "generate MINIMAL.md untuk direktori ini" },
+  { cmd: "/init --save", desc: "simpan draft ke MINIMAL.md" },
 ]
 
 type AcMode = "command" | "file" | "dir"
