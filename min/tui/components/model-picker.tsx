@@ -9,9 +9,9 @@
 import { createSignal, For, Show, onMount, createMemo } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import type { InputRenderable } from "@opentui/core"
-import { setState } from "../state.ts"
+import { state, setState } from "../state.ts"
 import {
-  listProviders, probeProvider, addProvider, switchModel,
+  listProviders, probeProvider, addProvider, switchModel, syncSessionModel,
   type Provider,
 } from "../client.ts"
 import { C } from "../theme.ts"
@@ -209,6 +209,7 @@ export function ModelPicker(props: Props) {
       if (newApiKey()) await addProvider(newName(), newBaseUrl(), newApiKey())
       await switchModel(provider.name, modelId)
       setState("model", modelId)
+      if (state.sessionId) await syncSessionModel(state.sessionId, modelId)
       props.onDone()
     } catch (e) {
       setError(String(e))

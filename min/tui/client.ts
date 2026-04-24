@@ -170,3 +170,7 @@ export async function switchModel(provider_name: string, model_id: string): Prom
   await req("POST", "/providers/switch", { provider_name, model_id })
 }
 
+export async function syncSessionModel(session_id: string, model_id: string): Promise<void> {
+  await req("PATCH", `/session/${session_id}/model`, { model: model_id })
+}
+

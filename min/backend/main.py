@@ -254,6 +254,22 @@ async def abort_session(session_id: str):
     return {"ok": True}
 
 
+@app.patch("/session/{session_id}/model")
+async def update_session_model(session_id: str, req: dict):
+    """
+    Sync model ke session setelah /model-add atau provider switch dari TUI.
+    Body: { model: string }
+    """
+    s = await session.get_or_load(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    model_id = req.get("model", "").strip()
+    if not model_id:
+        raise HTTPException(status_code=400, detail="model required")
+    s.model = model_id
+    return {"ok": True, "model": s.model}
+
+
 # --- Context endpoints ---
 
 @app.post("/context/add")
