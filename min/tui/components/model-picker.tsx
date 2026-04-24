@@ -296,7 +296,7 @@ export function ModelPicker(props: Props) {
               onInput={(val: string) => _handleInput(val)}
               onSubmit={(val: string) => _handleSubmit(val)}
             />
-            <Show when={error() && phase() !== "model-select"}>
+            <Show when={!!error()}>
               <text fg={C.pink} marginTop={1}>{error()}</text>
             </Show>
           </box>

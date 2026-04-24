@@ -265,7 +265,7 @@ async def update_session_model(session_id: str, req: dict):
     Sync model ke session setelah /model-add atau provider switch dari TUI.
     Body: { model: string }
     """
-    s = await session.get_or_load(session_id)
+    s = await session_store.get_or_load(session_id)
     if not s:
         raise HTTPException(status_code=404, detail="Session not found")
     model_id = req.get("model", "").strip()
