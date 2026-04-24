@@ -1,3 +1,4 @@
+import asyncio
 # session.py — session lifecycle + JSONL persistence
 # Format JSONL seperti Claude Code. Append-only. Recovery dari korup.
 
@@ -12,8 +13,9 @@ import config
 
 class Session:
     def __init__(self, session_id: str, model: str):
-        self.session_id = session_id
-        self.model = model
+        self.session_id  = session_id
+        self.model       = model
+        self.active_task: "asyncio.Task | None" = None
         self.mode: str = "ask"   # ask | edit-block | edit-udiff | edit-whole
         self.created_at = datetime.now(timezone.utc)
         self.context = ContextManager()

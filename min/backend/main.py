@@ -250,8 +250,13 @@ async def get_session(session_id: str):
 
 @app.post("/session/{session_id}/abort")
 async def abort_session(session_id: str):
-    # TODO: cancel ongoing stream via asyncio task cancellation
-    return {"ok": True}
+    s = await session_store.get_or_load(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if s.active_task and not s.active_task.done():
+        s.active_task.cancel()
+        return {"ok": True, "aborted": True}
+    return {"ok": True, "aborted": False}
 
 
 @app.patch("/session/{session_id}/model")
@@ -313,8 +318,20 @@ async def prompt(session_id: str, req: PromptRequest):
     if not s:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    async def _stream_with_task():
+        task = asyncio.current_task()
+        s.active_task = task
+        try:
+            async for chunk in _handle_prompt(s, req.content):
+                yield chunk
+        except asyncio.CancelledError:
+            yield sse("error", {"message": "aborted"})
+            yield sse("done", {"input_tokens": 0, "output_tokens": 0})
+        finally:
+            s.active_task = None
+
     return StreamingResponse(
-        _handle_prompt(s, req.content),
+        _stream_with_task(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
