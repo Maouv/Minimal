@@ -208,11 +208,14 @@ export function ModelPicker(props: Props) {
     try {
       if (newApiKey()) await addProvider(newName(), newBaseUrl(), newApiKey())
       await switchModel(provider.name, modelId)
-      setState("model", modelId)
       if (state.sessionId) await syncSessionModel(state.sessionId, modelId)
+      // Update display state hanya setelah semua backend calls berhasil
+      setState("model", modelId)
       props.onDone()
     } catch (e) {
-      setError(String(e))
+      // Tampilkan error yang jelas supaya tidak silent-fail
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
       setPhase("model-select")
       setTimeout(() => inputRef?.focus?.(), 50)
     }

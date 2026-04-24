@@ -33,11 +33,18 @@ const SLASH_COMMANDS = [
 type AcMode = "command" | "file" | "dir"
 interface AcItem { label: string; desc: string; value: string; is_dir?: boolean }
 
+let _globalInputRef: import("@opentui/core").InputRenderable | undefined
+export function focusInput() {
+  setTimeout(() => _globalInputRef?.focus?.(), 50)
+}
+
 export function InputBox() {
   const [acItems, setAcItems] = createSignal<AcItem[]>([])
   const [acSelected, setAcSelected] = createSignal(0)
   const [acMode, setAcMode] = createSignal<AcMode>("command")
   let inputRef: InputRenderable | undefined
+  // sync ke module-level ref supaya app.tsx bisa refocus setelah ModelPicker tutup
+  const setInputRef = (el: InputRenderable) => { inputRef = el; _globalInputRef = el }
 
   let fileCache: string[] = []
   let fileCacheLoaded = false
@@ -288,7 +295,7 @@ export function InputBox() {
           <box width="100%" flexDirection="row" alignItems="center" marginBottom={1}>
             <text fg={isDisabled() ? C.gray2 : C.blue} marginRight={1}>✦</text>
             <input
-              ref={inputRef}
+              ref={setInputRef}
               flexGrow={1}
               placeholder={isDisabled() ? "" : 'Ask anything... "Whats the tech stack of this project?"'}
               placeholderColor={C.gray2}

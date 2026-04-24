@@ -1,7 +1,7 @@
 // app.tsx — layout
 import { Show } from "solid-js"
 import { ChatView } from "./components/chat.tsx"
-import { InputBox } from "./components/input.tsx"
+import { InputBox, focusInput } from "./components/input.tsx"
 import { CtxBar } from "./components/status.tsx"
 import { ModelPicker } from "./components/model-picker.tsx"
 import { state, setState } from "./state.ts"
@@ -62,7 +62,7 @@ export function App() {
       <Show when={!!state.showModelPicker}>
         <ModelPicker
           mode={state.showModelPicker as "switch" | "add"}
-          onDone={() => setState("showModelPicker", false)}
+          onDone={() => { setState("showModelPicker", false); focusInput() }}
         />
       </Show>
       <InputBox />
