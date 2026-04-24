@@ -82,10 +82,16 @@ export function InputBox() {
     const items = acItems()
     const sel = items[acSelected()]
     if (!sel || !inputRef) return
-    skipNextInput = false
+    // skipNextInput = true supaya handleInput tidak re-trigger autocomplete
+    skipNextInput = true
     inputRef.value = sel.value
     setAcSelected(0)
-    handleInput(sel.value)
+    // Kalau dir: re-trigger manual supaya list drill-down muncul
+    // Kalau file: jangan trigger — user tinggal Enter untuk submit atau spasi untuk batch
+    if (sel.is_dir) {
+      skipNextInput = false
+      handleInput(sel.value)
+    }
   }
 
   useKeyboard((key) => {
@@ -102,17 +108,19 @@ export function InputBox() {
         if (sel) {
           key.preventDefault()
           if (sel.is_dir) {
-            // Dir dipilih → drill-down, jangan submit
+            // Dir → drill-down ke dalam dir tersebut
             insertFile()
           } else {
-            // File dipilih → insert, dismiss list, siap submit
+            // File → insert path, dismiss list
+            // User bisa: spasi + file lain (batch), atau Enter lagi (submit)
             insertFile()
             setAcItems([])
           }
           return
         }
-        // Tidak ada selection → dismiss list, biarkan onSubmit fire
+        // List ada tapi tidak ada selection yang valid → dismiss, submit
         setAcItems([])
+        // Biarkan onSubmit fire di tick berikutnya
       }
     }
   })
