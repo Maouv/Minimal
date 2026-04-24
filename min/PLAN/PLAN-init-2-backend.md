@@ -1,57 +1,107 @@
 # Plan 2 — Backend: Endpoint + Command Handler
 
 ## Depends on
-Plan 1 (`repo.py`) there must be..
+Plan 1 (`repo.py`) harus sudah ada.
+
+---
 
 ## 1. `commands.py`
 
-add `"init"` to `COMMANDS` list and `COMMANDS_NO_SLASH`.
+### Tambah `"init"` ke `Kind` literal di `Command` dataclass:
+```python
+kind: Literal[
+    "add", "drop",
+    "edit", "ask",
+    "clear", "reset",
+    "undo", "diff", "commit",
+    "run", "tokens", "model",
+    "help", "init",       # ← tambah ini
+    "prompt",
+]
+```
 
-Parse logic:
-- `/init` → `Command(kind="init", args="")`
-- `/init min/backend` → `Command(kind="init", args="min/backend")`
-- `/init --save` → `Command(kind="init", args="--save")`
+### Tambah ke `SLASH_COMMANDS` list:
+```python
+"/init",
+```
+
+### Tambah parse logic di `parse()` sebelum fallback `unknown`:
+```python
+if cmd == "/init":
+    return Command(kind="init", args=args)
+# args bisa: "" | "min/backend" | "--save"
+```
+
+### Tambah ke `HELP_TEXT`:
+```
+  /init [path]         generate MINIMAL.md for current or given dir
+  /init --save         write last draft to MINIMAL.md
+```
+
+---
 
 ## 2. `session.py`
 
-Add two field to Session:
+Tambah dua field ke `Session.__init__()`:
 
 ```python
 self.last_init_draft: str | None = None
-self.last_init_path: str | None = None
+self.last_init_path:  str | None = None
 ```
 
-## 3. `main.py` — new endpoint
+---
 
+## 3. `main.py` — endpoint baru
+
+```python
+@app.post("/repo/map")
+async def repo_map(req: dict):
+    """
+    Scan repo dari path tertentu dan return RepoContext.
+    Body: { path?: string }  — default CWD
+    Security: path di-resolve relatif ke CWD, tolak kalau keluar CWD.
+    """
+    import repo as repo_module
+    from pathlib import Path
+    import os
+
+    cwd = Path(os.getcwd())
+    raw_path = req.get("path", "").strip()
+    if raw_path:
+        candidate = (cwd / raw_path).resolve()
+        try:
+            candidate.relative_to(cwd)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Path outside CWD")
+        root = candidate
+    else:
+        root = cwd
+
+    ctx = repo_module.scan(root)
+    return ctx.__dict__
 ```
-POST /repo/map
-body: { path?: string }
-→ RepoContext as JSON
 
-Security: resolve path relative to CWD, reject if exit from CWD (sama
-e like/project/entries).
-```
+---
 
-## 4. `main.py` — `/init` handler in `_handle_prompt()`
+## 4. `main.py` — `/init` handler di `_handle_prompt()`
 
-Add block before LLM dispatch:
+Tambah blok ini sebelum LLM dispatch (setelah blok `/model`):
 
 ```python
 if command.kind == "init":
 
-    # --save: write last draft to disk
     if command.args == "--save":
         if not s.last_init_draft:
-            yield sse("error", {"message": "No draft. Run /init first."})
+            yield sse("error", {"message": "Tidak ada draft. Jalankan /init dulu."})
+            yield sse("done", {"input_tokens": 0, "output_tokens": 0})
             return
         target = Path(s.last_init_path or os.getcwd()) / "MINIMAL.md"
         target.write_text(s.last_init_draft, encoding="utf-8")
-        yield sse("text", {"content": f"✓ saved to {target}"})
+        yield sse("text", {"content": f"✓ Saved to {target}"})
         yield sse("done", {"input_tokens": 0, "output_tokens": 0})
         return
 
-    # scan repo
-    import repo as repo_module
+    # Resolve path — default CWD
     root = Path(os.getcwd())
     if command.args:
         candidate = (root / command.args).resolve()
@@ -59,18 +109,18 @@ if command.kind == "init":
             candidate.relative_to(root)
             root = candidate
         except ValueError:
-            yield sse("error", {"message": "The path is outside of project."})
+            yield sse("error", {"message": "Path di luar project."})
+            yield sse("done", {"input_tokens": 0, "output_tokens": 0})
             return
 
+    import repo as repo_module
     ctx = repo_module.scan(root)
     s.last_init_path = str(root)
 
-    # build context string to be injected into the prompt
-    context_str = _build_init_context(ctx)   # helper, see below
-
-    # stream to LLM
+    context_str = _build_init_context(ctx)
     system = prompts.init_system()
     messages = [{"role": "user", "content": context_str}]
+
     full_response = ""
     async for token, usage in llm.stream_chat(messages, s.model, system):
         if token:
@@ -78,41 +128,75 @@ if command.kind == "init":
             yield sse("token", {"content": token})
         if usage:
             s.last_init_draft = full_response
-            yield sse("done", {"input_tokens": usage.input_tokens,
-                               "output_tokens": usage.output_tokens})
+            yield sse("done", {
+                "input_tokens": usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+            })
     return
 ```
 
-## 5. `_build_init_context(ctx: RepoContext) -> str`
+---
 
-Helper in `main.py`, arrange context string:
+## 5. `_build_init_context(ctx) -> str`
 
+Helper function di `main.py`:
+
+```python
+def _build_init_context(ctx) -> str:
+    parts = []
+
+    if ctx.minimal_mds:
+        parts.append("=== EXISTING MINIMAL.md ===")
+        for md in ctx.minimal_mds:
+            parts.append(f"--- {md['path']} (depth {md['depth']}) ---")
+            parts.append(md["content"])
+
+    if ctx.repo_tags:
+        parts.append("=== @repo: TAGS ===")
+        for entry in ctx.repo_tags:
+            for tag in entry["tags"]:
+                parts.append(f"{entry['file']}: {tag}")
+
+    if ctx.symbols:
+        parts.append("=== REPO MAP ===")
+        for entry in ctx.symbols:
+            syms = ", ".join(entry["symbols"])
+            parts.append(f"{entry['file']}: {syms}")
+
+    if ctx.manifests:
+        parts.append("=== MANIFESTS ===")
+        for m in ctx.manifests:
+            parts.append(f"--- {m['file']} ---")
+            parts.append(m["content"])
+
+    return "\n".join(parts)
 ```
-=== EXISTING MINIMAL.md ===
-[write every minimal_md labeled path + depth]
 
-=== @repo: TAGS ===
-[file: tag]
-[file: tag]
+---
 
-=== REPO MAP ===
-[file: symbol1, symbol2, ...]
+## 6. `prompts.py` — tambah `init_system()`
 
-=== MANIFESTS ===
-[file: contents]
-```
+Lihat PLAN-init-3-frontend-prompt.md untuk isi lengkap system prompt.
 
-The token estimate is already trimmed by `repo.scan()`, so no further trimming is needed here.
+---
 
-## 6. `prompts.py` — add `init_system()`
+## 7. Catatan: `/project/entries` sudah ada
 
-Contents: system prompt from discussion (see PLAN-init-3-prompt.md).
+Endpoint `GET /project/entries?path=` sudah diimplementasi saat fix `/add` bug.
+Plan 3 frontend bisa langsung pakai `loadEntries()` dari `client.ts` — tidak perlu buat ulang.
 
-## test
+---
+
+## Test
 
 ```bash
+# Test endpoint langsung
 curl -X POST http://localhost:4096/repo/map \
   -H "Content-Type: application/json" \
   -d '{"path": "min/backend"}'
-```
 
+# Test via TUI
+/init                  → generate untuk CWD
+/init min/backend      → generate untuk subdir
+/init --save           → tulis ke MINIMAL.md
+```
