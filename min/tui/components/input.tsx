@@ -116,12 +116,20 @@ export function InputBox() {
         const sel = items[acSelected()]
         if (sel) {
           key.preventDefault()
+          if (acMode() === "dir") {
+            // /init dir mode — set value final, dismiss list, langsung submit
+            const val = inputRef?.value ?? ""
+            if (val.startsWith("/init ")) {
+              setAcItems([])
+              handleSubmit(sel.value)
+              return
+            }
+          }
           if (sel.is_dir) {
-            // Dir → drill-down ke dalam dir tersebut
+            // /add drill-down behavior
             insertFile()
           } else {
             // File → insert path, dismiss list
-            // User bisa: spasi + file lain (batch), atau Enter lagi (submit)
             insertFile()
             setAcItems([])
           }
@@ -239,6 +247,30 @@ export function InputBox() {
         }))
 
       setAcMode("file")
+      setAcItems(matches)
+      setAcSelected(0)
+      return
+    }
+
+    // /init — dirs only, satu level select
+    if (value.startsWith("/init ") && !value.includes("--")) {
+      const afterCmd = value.slice(6)
+      const lastSlash = afterCmd.lastIndexOf("/")
+      const browseDir = lastSlash >= 0 ? afterCmd.slice(0, lastSlash + 1) : ""
+      const filterName = afterCmd.slice(lastSlash + 1).toLowerCase()
+
+      const rawEntries = await loadEntries(browseDir)
+      const matches = rawEntries
+        .filter(e => e.is_dir)
+        .filter(e => filterName === "" || e.name.toLowerCase().includes(filterName))
+        .slice(0, 10)
+        .map(e => ({
+          label: e.name,
+          desc: e.path,
+          value: "/init " + e.path,
+          is_dir: true,
+        }))
+      setAcMode("dir")
       setAcItems(matches)
       setAcSelected(0)
       return
