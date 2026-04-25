@@ -63,17 +63,28 @@ Be concise and direct. If you don't know something, say so."""
 
 
 def edit_system_prompt(mode: EditMode, editable_files: dict[str, str]) -> str:
-    file_list = "\n".join(f"  - {p}" for p in editable_files) if editable_files else "  (none)"
     file_paths = list(editable_files.keys())
+
+    # Kirim path + isi file — model butuh ini untuk bikin SEARCH block yang exact match
+    if editable_files:
+        file_blocks = []
+        for path, content in editable_files.items():
+            ext = path.rsplit(".", 1)[-1] if "." in path else ""
+            fence_lang = ext if ext else ""
+            file_blocks.append(f"{path}\n```{fence_lang}\n{content}\n```")
+        file_section = "\n\n".join(file_blocks)
+    else:
+        file_section = "(no editable files)"
 
     base = f"""You are a coding assistant in edit mode.
 
-Editable files:
-{file_list}
+Here are the editable files and their current contents:
+
+{file_section}
 
 IMPORTANT — response structure:
 1. Output ONLY the edit block(s) — no preamble, no explanation before the edit
-2. After the edit block(s), write ONE short sentence confirming what was changed (e.g. "Changed paragraph 3 to describe aerodynamics more concisely.")
+2. After the edit block(s), write ONE short sentence confirming what was changed
 3. Do NOT show file contents, do NOT explain what you are about to do, do NOT think out loud
 4. Do NOT use <file path="..."> or any XML tags — ever"""
 
@@ -159,4 +170,5 @@ Rules:
 - Output the ENTIRE file content — not just the changed parts
 - No blank line between filename and opening ```
 - Do not wrap the filename in backticks or other markers"""
+
 

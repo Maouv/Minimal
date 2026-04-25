@@ -141,8 +141,13 @@ def _apply_udiff(response: str, files: dict[str, str]) -> list[EditResult]:
     matches = re.findall(pattern, response, re.DOTALL)
 
     if not matches:
-        return [EditResult(file="", original="", updated="", diff="",
-                           success=False, error="No diff block found in response")]
+        # Fallback: coba parse raw diff tanpa fence (model kadang skip backticks)
+        import re as _re
+        if _re.search(r"^---\s|^\+\+\+\s|^@@", response, _re.MULTILINE):
+            matches = [response]
+        else:
+            return [EditResult(file="", original="", updated="", diff="",
+                               success=False, error="No diff block found in response")]
 
     for diff_text in matches:
         # extract filename dari diff header
@@ -256,4 +261,5 @@ def _extract_udiff_filename(diff_text: str) -> str | None:
             if fname and fname != "/dev/null":
                 return fname
     return None
+
 

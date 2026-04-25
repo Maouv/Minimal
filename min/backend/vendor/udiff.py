@@ -40,17 +40,21 @@ def hunk_to_before_after(hunk, lines=False):
 def directly_apply_hunk(content, hunk):
     before, after = hunk_to_before_after(hunk)
     if not before: return None
-    # Pastikan flexible_search_and_replace ada di search_replace.py
-    return flexible_search_and_replace(content, before, after)
+    from .search_replace import replace_most_similar_chunk
+    return replace_most_similar_chunk(content, before, after)
 
 def apply_hunk(content, hunk):
     # Logika minimalis apply hunk
     before, after = hunk_to_before_after(hunk)
+    import sys
+    print(f"DEBUG apply_hunk before={before[:80]!r} after={after[:80]!r} exact_match={before in content}", file=sys.stderr, flush=True)
     if before in content:
         return content.replace(before, after, 1)
     
     # Jika gagal exact, panggil helper logic (seperti original aider)
-    return directly_apply_hunk(content, hunk)
+    result = directly_apply_hunk(content, hunk)
+    print(f"DEBUG directly_apply_hunk result={'ok' if result else 'None'}", file=sys.stderr, flush=True)
+    return result
 
 def find_diffs(content):
     if not content.endswith("\n"):
@@ -75,4 +79,5 @@ def find_diffs(content):
     if hunk:
         edits.append((fname, hunk))
     return edits
+
 
