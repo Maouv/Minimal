@@ -170,7 +170,19 @@ export async function consumeStream(response: Response): Promise<void> {
         const e = data as unknown as DoneEvent
         flushImmediate()
         if (assistantIdx !== -1) {
-          finalizeMessage(assistantIdx, pendingEdits.length ? [...pendingEdits] : undefined)
+          const idx = assistantIdx
+          const edits = pendingEdits.length ? [...pendingEdits] : undefined
+          finalizeMessage(idx, edits)
+          // Set displayContent sekali — computed saat finalize, tidak re-compute saat scroll
+          const rawContent = state.messages[idx]?.content ?? ""
+          const stripped = rawContent
+            .replace(/^[^\n]*\n?<<<<<<< SEARCH[\s\S]*?>>>>>>> REPLACE[^\n]*/gm, "")
+            .replace(/<file\s[^>]*>[\s\S]*?<\/file>/g, "")
+            .replace(/^\/[^\n]+\.(md|py|ts|tsx|js|jsx|json|yaml|yml|toml|sh|txt|go|rs|c|cpp)\s*$/gm, "")
+            .replace(/```(?:diff|udiff)[\s\S]*?```/g, "")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim()
+          setState("messages", idx, "displayContent", stripped)
         }
         setState("streaming", false)
         setState("inputTokens", state.inputTokens + (e.input_tokens ?? 0))
@@ -311,4 +323,5 @@ export async function consumeStream(response: Response): Promise<void> {
       setState("streaming", false);
     }
   }; // Penutup fungsi utama (seperti handleStream)
+
 

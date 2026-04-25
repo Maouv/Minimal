@@ -20,7 +20,8 @@ export interface EditResult {
 export interface Message {
   role: MessageRole
   content: string
-  thinking?: string      // thinking/reasoning content dari model
+  displayContent?: string  // content setelah strip edit blocks — di-set saat finalize
+  thinking?: string        // thinking/reasoning content dari model
   edits?: EditResult[]
   done: boolean
 }
@@ -86,3 +87,4 @@ export function resetAll() {
   setState("contextFiles", [])
   setState("totalTokens", 0)
 }
+

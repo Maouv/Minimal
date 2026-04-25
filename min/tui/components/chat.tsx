@@ -119,7 +119,7 @@ function stripEditBlocks(content: string): string {
 // Tidak ada scrollbar. Teks panjang truncate dengan … di ujung.
 // Line number di kiri abu-abu, sign +/- di tengah, konten di kanan.
 function DiffBlock(props: { diff: string; file: string }) {
-  const parsed = () => {
+  const parsed = createMemo(() => {
     const lines: Array<{ type: "added"|"removed"|"context"; lineNo: number; content: string }> = []
     let lineNo = 0
     for (const raw of props.diff.split("\n")) {
@@ -144,7 +144,7 @@ function DiffBlock(props: { diff: string; file: string }) {
       }
     }
     return lines
-  }
+  })
 
   return (
     <box width="100%" flexDirection="column">
@@ -185,10 +185,24 @@ function DiffBlock(props: { diff: string; file: string }) {
 function AiMsg(props: { msg: Message }) {
   const syntaxStyle = getMonokaiStyle()
 
-  // Freeze content setelah done — completed messages tidak re-render
-  // Saat streaming: content reactive. Setelah done: memo tidak pernah berubah.
-  const content = createMemo(() => stripEditBlocks(props.msg.content))
+  // Saat streaming: strip tiap update.
+  // Setelah done: pakai displayContent yang sudah di-compute sekali di state level.
   const isDone = createMemo(() => props.msg.done)
+  const content = createMemo(() => {
+    if (isDone() && props.msg.displayContent !== undefined) {
+      return props.msg.displayContent
+    }
+    return stripEditBlocks(props.msg.content)
+  })
+  // Frozen edits snapshot — setelah done tidak perlu re-subscribe
+  let _frozenEdits: typeof props.msg.edits = undefined
+  const edits = createMemo(() => {
+    if (isDone()) {
+      if (_frozenEdits === undefined) _frozenEdits = props.msg.edits
+      return _frozenEdits
+    }
+    return props.msg.edits
+  })
 
   return (
     <box
@@ -211,8 +225,8 @@ function AiMsg(props: { msg: Message }) {
       />
 
       {/* Diff blocks — hanya render setelah done */}
-      <Show when={isDone() && props.msg.edits && props.msg.edits!.length > 0}>
-        <For each={props.msg.edits}>
+      <Show when={isDone() && edits() && edits()!.length > 0}>
+        <For each={edits()}>
           {(edit) => {
             const added   = (edit.diff.match(/^\+[^+]/mg) ?? []).length
             const removed = (edit.diff.match(/^-[^-]/mg) ?? []).length
@@ -311,3 +325,4 @@ export function ChatView() {
     </scrollbox>
   )
 }
+
