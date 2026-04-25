@@ -34,6 +34,14 @@ def _inside_thinking(content: str) -> bool:
     return open_count > close_count
 
 
+def _just_closed_thinking(prev: str, curr: str) -> bool:
+    """Return True if the last token closed a thinking block."""
+    prev_open = prev.count("<think>") + prev.count("<thinking>")
+    curr_close = curr.count("</think>") + curr.count("</thinking>")
+    prev_close = prev.count("</think>") + prev.count("</thinking>")
+    return curr_close > prev_close and prev_open > prev_close
+
+
 def clean_for_history(content: str) -> str:
     return _strip_thinking(content)
 
@@ -42,10 +50,10 @@ async def stream_chat(
     messages: list[dict],
     model: str,
     system_prompt: str = "",
-) -> AsyncIterator[tuple[str | None, Usage | None]]:
+) -> AsyncIterator[tuple[str | None, Usage | None, str | None]]:
     """
-    Async generator — yield (token, None) per token, lalu (None, Usage) di akhir.
-    Thinking content di-skip otomatis, tidak pernah di-yield ke caller.
+    Async generator — yield (token, None, None) per token, (None, Usage, None) di akhir.
+    Thinking content di-yield sebagai (None, None, thinking_chunk) terpisah.
     """
     resolved_model = config.resolve_model(model)
 
@@ -71,14 +79,28 @@ async def stream_chat(
     async for chunk in stream:
         if chunk.choices:
             delta = chunk.choices[0].delta
+
+            # --- Handle reasoning_content (DeepSeek, etc.) ---
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                yield None, None, reasoning
+
             if delta and delta.content:
                 token = delta.content
+                prev_content = full_content
                 full_content += token
-                if not _inside_thinking(full_content):
-                    yield token, None
+
+                if _inside_thinking(full_content):
+                    # Token masih di dalam thinking block — stream sebagai thinking
+                    yield None, None, token
+                elif _just_closed_thinking(prev_content, full_content):
+                    # Token menutup thinking block — skip closing tag, jangan emit
+                    pass
+                else:
+                    yield token, None, None
 
         if chunk.usage:
             input_tokens = chunk.usage.prompt_tokens or 0
             output_tokens = chunk.usage.completion_tokens or 0
 
-    yield None, Usage(input_tokens=input_tokens, output_tokens=output_tokens)
+    yield None, Usage(input_tokens=input_tokens, output_tokens=output_tokens), None

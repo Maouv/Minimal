@@ -5,6 +5,7 @@ import {
   setState,
   pushMessage,
   appendToken,
+  appendThinking,
   finalizeMessage,
   setContextFiles,
   clearMessages,
@@ -21,18 +22,20 @@ const TOKEN_FLUSH_MS = 32            // ~30 FPS — flush token buffer ke state
 // ── Event payloads ────────────────────────────────────────────────────────────
 // Sesuai backend main.py yield sse(...)
 
-interface TokenEvent   { content: string }
-interface EditEvent    { file: string; diff: string; success: boolean; error?: string }
-interface DoneEvent    { input_tokens: number; output_tokens: number }
-interface ErrorEvent   { message: string }
-interface ContextEvent { files: ContextFile[]; total_tokens?: number }
-interface ModelEvent   { model: string }
-interface TokensEvent  { context_tokens: number; session_tokens: number }
-interface DiffEvent    { diffs: Array<{ file: string; diff: string }> }
-interface RunEvent     { output: string; returncode: number }
-interface CommitEvent  { output: string }
-interface UndoEvent    { files: string[] }
-interface TextEvent    { content: string }  // /help output dll
+interface TokenEvent    { content: string }
+interface ThinkingEvent { content: string }
+interface EditEvent     { file: string; diff: string; success: boolean; error?: string }
+interface DoneEvent     { input_tokens: number; output_tokens: number }
+interface ErrorEvent    { message: string }
+interface ContextEvent  { files: ContextFile[]; total_tokens?: number }
+interface ModelEvent    { model: string }
+interface TokensEvent   { context_tokens: number; session_tokens: number }
+interface DiffEvent     { diffs: Array<{ file: string; diff: string }> }
+interface RunEvent      { output: string; returncode: number }
+interface CommitEvent   { output: string }
+interface UndoEvent     { files: string[] }
+interface TextEvent     { content: string }
+interface AppliedSummaryEvent { message: string; applied: string[]; failed: string[] }
 
 // ── Main consumer ─────────────────────────────────────────────────────────────
 
@@ -47,16 +50,21 @@ export async function consumeStream(response: Response): Promise<void> {
   const pendingEdits: EditResult[] = []
 
   // ── Token throttle buffer ──────────────────────────────────────────────────
-  // Kumpulkan token di sini, flush ke Solid state setiap TOKEN_FLUSH_MS.
-  // Ini potong reactive updates dari ratusan/detik → ~30x/detik.
   let tokenBuffer = ""
+  let thinkingBuffer = ""
   let flushTimer: ReturnType<typeof setTimeout> | null = null
 
   function flushTokens() {
     flushTimer = null
-    if (tokenBuffer === "" || assistantIdx === -1) return
-    appendToken(assistantIdx, tokenBuffer)
-    tokenBuffer = ""
+    if (assistantIdx === -1) return
+    if (tokenBuffer !== "") {
+      appendToken(assistantIdx, tokenBuffer)
+      tokenBuffer = ""
+    }
+    if (thinkingBuffer !== "") {
+      appendThinking(assistantIdx, thinkingBuffer)
+      thinkingBuffer = ""
+    }
   }
 
   function scheduleFlush() {
@@ -88,8 +96,16 @@ export async function consumeStream(response: Response): Promise<void> {
     }
   }
 
+  function ensureAssistantMessage() {
+    if (assistantIdx === -1) {
+      flushImmediate()
+      assistantIdx = pushMessage("assistant")
+      setState("streaming", true)
+      setState("error", null)
+    }
+  }
+
   function handleEvent(eventType: string, raw: string) {
-    // ping — reset heartbeat, tidak ada payload penting
     if (eventType === "ping") {
       resetHeartbeat()
       return
@@ -105,15 +121,17 @@ export async function consumeStream(response: Response): Promise<void> {
     switch (eventType) {
       case "token": {
         const e = data as unknown as TokenEvent
-        if (assistantIdx === -1) {
-          // Mulai message assistant baru — flush dulu kalau ada sisa
-          flushImmediate()
-          assistantIdx = pushMessage("assistant")
-          setState("streaming", true)
-          setState("error", null)
-        }
-        // Buffer token, jangan langsung ke state
+        ensureAssistantMessage()
         tokenBuffer += e.content
+        scheduleFlush()
+        resetHeartbeat()
+        break
+      }
+
+      case "thinking": {
+        const e = data as unknown as ThinkingEvent
+        ensureAssistantMessage()
+        thinkingBuffer += e.content
         scheduleFlush()
         resetHeartbeat()
         break
@@ -131,9 +149,26 @@ export async function consumeStream(response: Response): Promise<void> {
         break
       }
 
+      case "applied_summary": {
+        const e = data as unknown as AppliedSummaryEvent
+        flushImmediate()
+        const idx = pushMessage("system", e.message)
+        finalizeMessage(idx)
+        break
+      }
+
+      case "exit": {
+        // Backend minta TUI keluar
+        flushImmediate()
+        setState("streaming", false)
+        stopHeartbeat()
+        process.exit(0)
+        break
+      }
+
       case "done": {
         const e = data as unknown as DoneEvent
-        flushImmediate()  // pastikan semua token masuk sebelum finalize
+        flushImmediate()
         if (assistantIdx !== -1) {
           finalizeMessage(assistantIdx, pendingEdits.length ? [...pendingEdits] : undefined)
         }
@@ -148,7 +183,7 @@ export async function consumeStream(response: Response): Promise<void> {
 
       case "error": {
         const e = data as unknown as ErrorEvent
-        flushImmediate()  // flush sisa token sebelum error state
+        flushImmediate()
         setState("error", e.message)
         setState("streaming", false)
         if (assistantIdx !== -1) {
@@ -198,7 +233,6 @@ export async function consumeStream(response: Response): Promise<void> {
       }
 
       case "text": {
-        // Output teks biasa dari commands (/help, /run, dll)
         const e = data as unknown as TextEvent
         const idx = pushMessage("assistant", e.content)
         finalizeMessage(idx)
@@ -243,38 +277,38 @@ export async function consumeStream(response: Response): Promise<void> {
   // ── Parse loop ──────────────────────────────────────────────────────────────
   resetHeartbeat()
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+      try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true })
+        buffer += decoder.decode(value, { stream: true });
 
-      // SSE format: "event: <type>\ndata: <json>\n\n"
-      const blocks = buffer.split("\n\n")
-      buffer = blocks.pop() ?? ""   // sisa yang belum complete
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
 
-      for (const block of blocks) {
-        if (!block.trim()) continue
+        for (const block of blocks) {
+          if (!block.trim()) continue;
 
-        let eventType = "message"
-        let dataLine = ""
+          let eventType = "message";
+          let dataLine = "";
 
-        for (const line of block.split("\n")) {
-          if (line.startsWith("event: ")) {
-            eventType = line.slice(7).trim()
-          } else if (line.startsWith("data: ")) {
-            dataLine = line.slice(6)
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event: ")) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith("data: ")) {
+              dataLine = line.slice(6);
+            }
           }
-        }
 
-        if (dataLine) handleEvent(eventType, dataLine)
+          if (dataLine) handleEvent(eventType, dataLine);
+        }
       }
+    } finally {
+      flushImmediate();
+      stopHeartbeat();
+      reader.releaseLock();
+      setState("streaming", false);
     }
-  } finally {
-    flushImmediate()  // flush sisa token yang belum masuk
-    stopHeartbeat()
-    reader.releaseLock()
-    setState("streaming", false)
-  }
-}
+  }; // Penutup fungsi utama (seperti handleStream)
+

@@ -30,6 +30,7 @@ const SLASH_COMMANDS = [
   { cmd: "/help",       desc: "show help" },
   { cmd: "/init",       desc: "generate MINIMAL.md untuk direktori ini" },
   { cmd: "/init --save", desc: "simpan draft ke MINIMAL.md" },
+  { cmd: "/exit",       desc: "keluar dari minimal" },
 ]
 
 type AcMode = "command" | "file" | "dir"

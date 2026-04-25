@@ -20,6 +20,7 @@ export interface EditResult {
 export interface Message {
   role: MessageRole
   content: string
+  thinking?: string      // thinking/reasoning content dari model
   edits?: EditResult[]
   done: boolean
 }
@@ -60,6 +61,10 @@ export function pushMessage(role: MessageRole, content = ""): number {
 
 export function appendToken(idx: number, token: string) {
   setState("messages", idx, "content", (prev) => prev + token)
+}
+
+export function appendThinking(idx: number, chunk: string) {
+  setState("messages", idx, "thinking", (prev) => (prev ?? "") + chunk)
 }
 
 export function finalizeMessage(idx: number, edits?: EditResult[]) {

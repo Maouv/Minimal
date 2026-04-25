@@ -9,7 +9,7 @@ function fmtK(n: number): string {
 }
 
 // ── Status bar — paling bawah ─────────────────────────────────────────────────
-// Ask · glm-5                                              minimal
+// Ask · glm-5  [sess:abc123]                              minimal
 export function StatusBar() {
   const modeColor = createMemo(() => MODE_COLOR[state.mode] ?? C.cyan)
   const modeLabel = createMemo(() => {
@@ -18,6 +18,13 @@ export function StatusBar() {
       "ask": "Ask", "edit-block": "Edit", "edit-udiff": "Edit", "edit-whole": "Edit",
     }
     return m[state.mode] ?? state.mode
+  })
+
+  // Show short session ID (last 8 chars) for resuming sessions
+  const shortSession = createMemo(() => {
+    const sid = state.sessionId
+    if (!sid) return ""
+    return sid.length > 8 ? sid.slice(-8) : sid
   })
 
   return (
@@ -33,6 +40,9 @@ export function StatusBar() {
       <text fg={modeColor()}>{modeLabel()}</text>
       <text fg={C.gray2}>{" · "}</text>
       <text fg={C.gray}>{state.model || "—"}</text>
+      <Show when={shortSession()}>
+        <text fg={C.gray3}>{`  [${shortSession()}]`}</text>
+      </Show>
       <Show when={state.error}>
         <text fg={C.gray2}>{" · "}</text>
         <text fg={C.pink}>{state.error!.slice(0, 40)}</text>

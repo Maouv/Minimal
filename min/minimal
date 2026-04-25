@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# minimal — launcher script
+# Usage: minimal [--session <id>] [--model <model>]
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR/backend"
+TUI_DIR="$SCRIPT_DIR/tui"
+
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+die() { echo "minimal: $*" >&2; exit 1; }
+check_dep() {
+    command -v "$1" >/dev/null 2>&1 || die "$1 is required but not found"
+}
+
+# ── Deps check ────────────────────────────────────────────────────────────────
+
+check_dep python3
+check_dep bun
+
+# ── Start backend if not running ──────────────────────────────────────────────
+
+BACKEND_PID_FILE="/tmp/minimal-backend.pid"
+BACKEND_LOG="/tmp/minimal-backend.log"
+
+backend_running() {
+    curl -sf http://127.0.0 >/dev/null 2>&1
+}
+
+if ! backend_running; then
+    echo "minimal: starting backend..."
+    cd "$BACKEND_DIR"
+    python3 main.py >> "$BACKEND_LOG" 2>&1 &
+    BACKEND_PID=$!
+    echo "$BACKEND_PID" > "$BACKEND_PID_FILE"
+    
+    # Wait for backend to be ready (max 10s)
+    for i in $(seq 1 20); do
+        sleep 0.5
+        if backend_running; then break; fi
+        if [ $i -eq 20 ]; then
+            die "backend failed to start. Check $BACKEND_LOG"
+        fi
+    done
+    
+    # Kill backend when TUI exits
+    trap "kill $BACKEND_PID 2>/dev/null; rm -f $BACKEND_PID_FILE" EXIT
+else
+    echo "minimal: backend already running"
+fi
+
+# ── Launch TUI ────────────────────────────────────────────────────────────────
+
+cd "$TUI_DIR"
+exec bun run index.tsx "$@"
+

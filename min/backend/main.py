@@ -507,7 +507,9 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         messages = [{"role": "user", "content": context_str}]
 
         full_response = ""
-        async for token, usage in llm.stream_chat(messages, s.model, system):
+        async for token, usage, thinking in llm.stream_chat(messages, s.model, system):
+            if thinking:
+                yield sse("thinking", {"content": thinking})
             if token:
                 full_response += token
                 yield sse("token", {"content": token})
@@ -526,6 +528,10 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
 
     if command.kind == "help":
         yield sse("text", {"content": cmd_parser.HELP_TEXT})
+        return
+
+    if command.kind == "exit":
+        yield sse("exit", {})
         return
 
     if command.kind == "undo":
@@ -606,19 +612,16 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     usage = None
 
     # heartbeat task — kirim ping setiap 2 detik selama stream aktif
-    async def heartbeat():
-        while True:
-            await asyncio.sleep(2)
-            yield sse("ping", {})
-
     heartbeat_task = asyncio.create_task(_run_heartbeat())
 
     try:
-        async for token, u in llm.stream_chat(
+        async for token, u, thinking in llm.stream_chat(
             messages=messages,
             model=s.model,
             system_prompt=system_prompt,
         ):
+            if thinking is not None:
+                yield sse("thinking", {"content": thinking})
             if token is not None:
                 full_response += token
                 yield sse("token", {"content": token})
@@ -641,6 +644,9 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                 clean_response, s.context.get_editable(), effective_mode
             )
 
+            applied_files = []
+            failed_files = []
+
             for result in edit_results:
                 if result.success:
                     written = coder.write_to_disk(result)
@@ -649,6 +655,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                     if verified:
                         await s.context.reload(result.file)
                         await s.write_edit(result.file, result.diff, True)
+                        applied_files.append(result.file)
                         yield sse("edit", {
                             "file": result.file,
                             "diff": result.diff,
@@ -657,6 +664,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                     else:
                         coder.rollback(result)
                         await s.write_edit(result.file, result.diff, False)
+                        failed_files.append(result.file)
                         yield sse("edit", {
                             "file": result.file,
                             "diff": "",
@@ -664,9 +672,21 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                             "error": "Edit failed verification — rolled back",
                         })
                 else:
+                    failed_files.append(result.file or "?")
                     yield sse("error", {"message": result.error})
 
             s.last_edit = [r for r in edit_results if r.success]
+
+            # Applied summary — ringkasan apa yang berubah
+            summary_parts = []
+            if applied_files:
+                files_str = ", ".join(f.split("/")[-1] for f in applied_files)
+                summary_parts.append(f"✓ Applied to {len(applied_files)} file(s): {files_str}")
+            if failed_files:
+                files_str = ", ".join(f.split("/")[-1] for f in failed_files)
+                summary_parts.append(f"✗ Failed: {files_str}")
+            if summary_parts:
+                yield sse("applied_summary", {"message": "\n".join(summary_parts), "applied": applied_files, "failed": failed_files})
 
         yield sse("done", {
             "input_tokens": usage.input_tokens if usage else 0,

@@ -22,6 +22,7 @@ SLASH_COMMANDS = [
     "/run", "/tokens", "/model",
     "/help",
     "/init",
+    "/exit",
 ]
 
 
@@ -33,7 +34,7 @@ class Command:
         "clear", "reset",
         "undo", "diff", "commit",
         "run", "tokens", "model",
-        "help", "init",       # ← init added
+        "help", "init", "exit",
         "prompt",  # bukan slash command — prompt biasa ke AI
     ]
     args: str = ""
@@ -106,6 +107,9 @@ def parse(raw: str) -> Command:
     if cmd == "/init":
         return Command(kind="init", args=args)
 
+    if cmd == "/exit":
+        return Command(kind="exit")
+
     # unknown slash command — treat as prompt
     return Command(kind="prompt", args=text)
 
@@ -130,5 +134,5 @@ Commands:
   /help                show this help
   /init [path]         generate MINIMAL.md for current or given dir
   /init --save         write last draft to MINIMAL.md
+  /exit                exit minimal
 """.strip()
-
