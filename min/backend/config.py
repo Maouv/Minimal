@@ -86,7 +86,14 @@ def context_window(model_alias: str | None = None) -> int:
 
 
 def sessions_dir() -> Path:
-    d = _CONFIG_DIR / "sessions"
+    """
+    Session path di-scope per project berdasarkan CWD saat backend start.
+    CWD /root/minimal   → ~/.minimal/sessions/-root-minimal/
+    CWD /home/maou/dlmm → ~/.minimal/sessions/-home-maou-dlmm/
+    """
+    cwd = Path(os.getenv("MINIMAL_PROJECT_ROOT", os.getcwd()))
+    slug = "-" + str(cwd).lstrip("/").replace("/", "-")
+    d = _CONFIG_DIR / "sessions" / slug
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -236,4 +243,5 @@ def switch_provider_model(provider: dict, model_id: str) -> None:
     os.environ["LLM_BASE_URL"] = provider["base_url"]
     os.environ["LLM_API_KEY"] = resolved_key
     os.environ["LLM_MODEL"] = model_id
+
 
