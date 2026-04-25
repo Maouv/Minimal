@@ -121,7 +121,14 @@ Rules:
 - The filename line must be EXACTLY as shown in the editable files list above
 - Do not wrap the filename in backticks or any other markers
 - Do NOT show file content before the block — go straight to filename then <<<<<<< SEARCH
-- Do NOT use XML tags like <file path="..."> or </file> — plain filename only"""
+- Do NOT use XML tags like <file path="..."> or </file> — plain filename only
+- To write to an EMPTY file, use an empty SEARCH block:
+
+{example_file}
+<<<<<<< SEARCH
+=======
+<full content to write>
+>>>>>>> REPLACE"""
 
 
 def _udiff_instructions(file_paths: list[str]) -> str:
