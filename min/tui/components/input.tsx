@@ -6,7 +6,7 @@ import { createSignal, For, Show } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
 import type { InputRenderable } from "@opentui/core"
 import { state, setState, pushMessage } from "../state.ts"
-import { sendPrompt, abortSession, listProjectFiles, listProjectEntries } from "../client.ts"
+import { sendPrompt, abortSession, listProjectFiles, listProjectEntries, listProjectDirs } from "../client.ts"
 import { consumeStream } from "../stream.ts"
 import { C, MODE_COLOR } from "../theme.ts"
 
@@ -51,6 +51,9 @@ export function InputBox() {
 
   let fileCache: string[] = []
   let fileCacheLoaded = false
+  let dirCache: string[] = []
+  let dirCacheLoaded = false
+  let dirCacheRoot = "./"
 
   async function loadFileCache() {
     if (fileCacheLoaded) return
@@ -59,6 +62,17 @@ export function InputBox() {
       fileCache = res.files
       fileCacheLoaded = true
     } catch { fileCache = [] }
+  }
+
+  async function loadDirCache() {
+    if (dirCacheLoaded) return
+    try {
+      const res = await listProjectDirs()
+      dirCache = res.dirs
+      const parts = res.cwd.split("/").filter(Boolean)
+      dirCacheRoot = (parts[parts.length - 1] || "root") + "/"
+      dirCacheLoaded = true
+    } catch { dirCache = []; dirCacheRoot = "./" }
   }
 
   // Drill-down entries untuk /add dan /init — list immediate children
@@ -255,22 +269,17 @@ export function InputBox() {
 
     // /init — dirs only, satu level select
     if (value.startsWith("/init ") && !value.includes("--")) {
-      const afterCmd = value.slice(6)
-      const lastSlash = afterCmd.lastIndexOf("/")
-      const browseDir = lastSlash >= 0 ? afterCmd.slice(0, lastSlash + 1) : ""
-      const filterName = afterCmd.slice(lastSlash + 1).toLowerCase()
-
-      const rawEntries = await loadEntries(browseDir)
-      const matches = rawEntries
-        .filter(e => e.is_dir)
-        .filter(e => filterName === "" || e.name.toLowerCase().includes(filterName))
-        .slice(0, 10)
-        .map(e => ({
-          label: e.name,
-          desc: e.path,
-          value: "/init " + e.path,
-          is_dir: true,
-        }))
+      await loadDirCache()
+      const filter = value.slice(6).toLowerCase()
+      const allDirs = [{ label: dirCacheRoot, desc: "./", value: "/init ./" }, ...dirCache.map(d => {
+          const parts = d.replace(/\/+$/, "").split("/")
+          const name = parts[parts.length - 1] || "root"
+          return { label: name + "/", desc: d, value: "/init " + d }
+        })]
+      const matches = allDirs
+        .filter(d => filter === "" || d.desc.toLowerCase().includes(filter) || d.label.toLowerCase().includes(filter))
+        .slice(0, 12)
+        .map(d => ({ ...d, is_dir: true }))
       setAcMode("dir")
       setAcItems(matches)
       setAcSelected(0)
@@ -355,3 +364,4 @@ export function InputBox() {
     </box>
   )
 }
+

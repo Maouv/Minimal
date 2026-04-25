@@ -138,6 +138,15 @@ export async function listProjectEntries(path = ""): Promise<ProjectEntriesRespo
   return req("GET", `/project/entries${q}`)
 }
 
+export interface ProjectDirsResponse {
+  dirs: string[]
+  cwd: string
+}
+
+export async function listProjectDirs(): Promise<ProjectDirsResponse> {
+  return req("GET", "/project/dirs")
+}
+
 // ── Providers ─────────────────────────────────────────────────────────────────
 
 export interface Provider {
@@ -173,4 +182,5 @@ export async function switchModel(provider_name: string, model_id: string): Prom
 export async function syncSessionModel(session_id: string, model_id: string): Promise<void> {
   await req("PATCH", `/session/${session_id}/model`, { model: model_id })
 }
+
 

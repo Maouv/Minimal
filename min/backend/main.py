@@ -232,6 +232,40 @@ async def project_files():
     return {"files": files, "cwd": str(cwd)}
 
 
+
+@app.get("/project/dirs")
+async def project_dirs():
+    """Walk CWD recursively, return all dirs (skip hidden + noise). Dipakai /init autocomplete."""
+    import os
+    from pathlib import Path
+
+    SKIP_DIRS = {
+        ".git", "__pycache__", "node_modules", ".venv", "venv",
+        ".mypy_cache", ".ruff_cache", "dist", "build", ".next",
+        ".nuxt", "target", ".cargo",
+    }
+
+    def walk(root: Path, cwd: Path) -> list[str]:
+        results: list[str]= []
+        try:
+            for entry in sorted(root.iterdir()):
+                if entry.name.startswith("."):
+                    continue
+                if not entry.is_dir():
+                    continue
+                if entry.name in SKIP_DIRS:
+                    continue
+                rel = str(entry.relative_to(cwd)) + "/"
+                results.append(rel)
+                results.extend(walk(entry, cwd))
+        except PermissionError:
+            pass
+        return results
+
+    cwd = Path(os.getcwd())
+    dirs = walk(cwd, cwd)
+    return {"dirs": dirs, "cwd": str(cwd)}
+
 @app.get("/project/entries")
 async def project_entries(path: str = ""):
     """
@@ -479,14 +513,14 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                 yield sse("error", {"message": "Tidak ada draft. Jalankan /init dulu."})
                 yield sse("done", {"input_tokens": 0, "output_tokens": 0})
                 return
-            target = Path(s.last_init_path or os.getcwd()) / "MINIMAL.md"
+            target = Path(s.last_init_path or os.environ.get("MINIMAL_PROJECT_ROOT", os.getcwd())) / "MINIMAL.md"
             target.write_text(s.last_init_draft, encoding="utf-8")
             yield sse("text", {"content": f"✓ Saved to {target}"})
             yield sse("done", {"input_tokens": 0, "output_tokens": 0})
             return
 
-        # Resolve path — default CWD
-        root = Path(os.getcwd())
+        # Resolve path — default project root (di-set launcher via env)
+        root = Path(os.environ.get("MINIMAL_PROJECT_ROOT", os.getcwd()))
         if command.args:
             candidate = (root / command.args).resolve()
             try:
@@ -706,3 +740,4 @@ async def _run_heartbeat():
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=4096, reload=False)
+
