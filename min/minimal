@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# minimal — launcher script
+# minimal — launcher
 # Usage: minimal [--init] [--session <id>] [--model <model>]
 
 set -e
@@ -14,123 +14,31 @@ VENV_PYTHON="$VENV_DIR/bin/python"
 BACKEND_PORT=4096
 BACKEND_PID_FILE="/tmp/minimal-$USER-backend.pid"
 BACKEND_LOG="/tmp/minimal-$USER-backend.log"
+MINIMAL_SESSION_FILE="/tmp/minimal-$USER-session"
+BACKEND_OWNED=false
+BACKEND_PID=""
+MINIMAL_SESSION_ID=""
 
-die()      { echo "minimal: $*" >&2; exit 1; }
-info()     { echo "minimal: $*"; }
-check_dep(){ command -v "$1" >/dev/null 2>&1 || die "$1 is required but not found"; }
+die() { echo "minimal: $*" >&2; exit 1; }
+check_dep() { command -v "$1" >/dev/null 2>&1 || die "$1 is required but not found"; }
 
-backend_running() {
-    curl -sf "http://127.0.0.1:${BACKEND_PORT}/health" >/dev/null 2>&1
-}
-
-cleanup() {
-    local exit_code=$?
-    if [ "$BACKEND_OWNED" = true ] && [ -f "$BACKEND_PID_FILE" ]; then
-        local pid
-        pid=$(cat "$BACKEND_PID_FILE")
-        info "stopping backend (pid=$pid)..." >&2
-        kill "$pid" 2>/dev/null || true
-        rm -f "$BACKEND_PID_FILE"
-    fi
-    exit $exit_code
-}
-
-cmd_init() {
-    check_dep python3
-    check_dep bun
-
-    info "initializing minimal..."
-
-    if [ ! -x "$VENV_PYTHON" ]; then
-        info "creating venv at $VENV_DIR ..."
-        python3 -m venv "$VENV_DIR"
-    else
-        info "venv already exists at $VENV_DIR"
-    fi
-
-    info "installing backend deps..."
-    "$VENV_DIR/bin/pip" install -q --upgrade pip
-    "$VENV_DIR/bin/pip" install -q -r "$SCRIPT_DIR/requirements.txt"
-
-    info "installing TUI deps..."
-    cd "$TUI_DIR" && bun install --silent
-
-    LOCAL_BIN="$HOME/.local/bin"
-    mkdir -p "$LOCAL_BIN"
-    LINK="$LOCAL_BIN/minimal"
-    if [ -L "$LINK" ] || [ -f "$LINK" ]; then
-        info "launcher already at $LINK (skipping symlink)"
-    else
-        ln -sf "$SCRIPT_DIR/minimal" "$LINK"
-        info "linked: $LINK → $SCRIPT_DIR/minimal"
-        case ":$PATH:" in
-            *":$LOCAL_BIN:"*) ;;
-            *) echo ""
-               echo "  ⚠  Add this to your shell rc:"
-               echo "     export PATH=\"\$HOME/.local/bin:\$PATH\""
-               echo "" ;;
-        esac
-    fi
-
-    if [ ! -f "$MINIMAL_HOME/.env" ]; then
-        info "running credential setup..."
-        PYTHONPATH="$BACKEND_DIR" "$VENV_PYTHON" -c "
-import config
-config._run_wizard()
-print('Config saved.')
-"
-    else
-        info "credentials already configured at $MINIMAL_HOME/.env"
-    fi
-
-    echo ""
-    info "done! Run: minimal"
-}
+source "$SCRIPT_DIR/lib/backend.sh"
+source "$SCRIPT_DIR/lib/init.sh"
+source "$SCRIPT_DIR/lib/exit.sh"
 
 if [ "${1:-}" = "--init" ]; then
     cmd_init
     exit 0
 fi
 
-if [ ! -x "$VENV_PYTHON" ]; then
-    die "not initialized. Run: minimal --init"
-fi
-
+[ ! -x "$VENV_PYTHON" ] && die "not initialized. Run: minimal --init"
 check_dep bun
 
-BACKEND_OWNED=false
-
-if ! backend_running; then
-    info "starting backend..."
-    PYTHONPATH="$BACKEND_DIR" "$VENV_PYTHON" "$BACKEND_DIR/main.py" >> "$BACKEND_LOG" 2>&1 &
-    BACKEND_PID=$!
-    echo "$BACKEND_PID" > "$BACKEND_PID_FILE"
-    BACKEND_OWNED=true
-
-    for i in $(seq 1 20); do
-        sleep 0.5
-        if backend_running; then
-            info "backend ready (pid=$BACKEND_PID)"
-            break
-        fi
-        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-            echo "minimal: backend crashed. Last log:" >&2
-            tail -20 "$BACKEND_LOG" >&2
-            rm -f "$BACKEND_PID_FILE"
-            exit 1
-        fi
-        if [ "$i" -eq 20 ]; then
-            kill "$BACKEND_PID" 2>/dev/null || true
-            rm -f "$BACKEND_PID_FILE"
-            die "backend failed to start within 10s. Check $BACKEND_LOG"
-        fi
-    done
-else
-    info "backend already running"
-fi
+start_backend || exit 1
 
 trap cleanup EXIT INT TERM
 
+export MINIMAL_SESSION_FILE
 cd "$TUI_DIR"
 bun run index.tsx "$@"
 TUI_EXIT=$?

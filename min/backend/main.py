@@ -338,6 +338,10 @@ async def get_session(session_id: str):
         "model": s.model,
         "created_at": s.created_at,
         "message_count": len(s.messages),
+        "messages": [
+            {"role": m["role"], "content": m["content"]}
+            for m in s.messages
+        ],
     }
 
 

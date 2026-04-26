@@ -86,7 +86,14 @@ class Session:
     @classmethod
     async def load(cls, session_id: str) -> "Session | None":
         """Load session dari JSONL. Skip lines yang korup."""
+        # Cari di project-scoped dir dulu, fallback ke root sessions dir
         path = config.sessions_dir() / f"{session_id}.jsonl"
+        if not path.exists():
+            # Fallback: cari di semua subdir sessions
+            from config import _CONFIG_DIR
+            for candidate in (_CONFIG_DIR / "sessions").rglob(f"{session_id}.jsonl"):
+                path = candidate
+                break
         if not path.exists():
             return None
 
@@ -175,3 +182,4 @@ async def _read_jsonl_safe(path: Path) -> list[dict]:
             break
 
     return lines
+
