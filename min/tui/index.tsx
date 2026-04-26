@@ -24,6 +24,11 @@ if (!ok) {
 const config = await getConfig()
 setState("model", argv.model ?? config.model ?? "")
 
+// Kalau belum configured, buka setup flow di TUI langsung
+if (!config.configured) {
+  setState("showModelPicker", "add")
+}
+
 let sessionId: string
 if (argv.session) {
   const existing = await getSession(argv.session).catch(() => null)

@@ -112,6 +112,7 @@ async def get_config() -> ConfigResponse:
         context_window=config.context_window(),
         timeout=config.timeout(),
         max_tokens=config.max_tokens(),
+        configured=config.is_configured(),
     )
 
 

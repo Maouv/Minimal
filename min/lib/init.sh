@@ -40,18 +40,8 @@ cmd_init() {
         esac
     fi
 
-    if [ ! -f "$MINIMAL_HOME/.env" ]; then
-        echo "minimal: running credential setup..." >&2
-        PYTHONPATH="$BACKEND_DIR" "$VENV_PYTHON" -c "
-import config
-config._run_wizard()
-print('Config saved.')
-"
-    else
-        echo "minimal: credentials already configured" >&2
-    fi
-
     echo "" >&2
     echo "minimal: done! Run: minimal" >&2
+    echo "minimal: credential setup akan muncul otomatis saat pertama kali jalan" >&2
 }
 

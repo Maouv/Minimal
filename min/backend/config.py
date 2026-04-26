@@ -13,40 +13,25 @@ _ENV_FILE = _CONFIG_DIR / ".env"
 _PROVIDERS_FILE = _CONFIG_DIR / "providers.json"
 
 def ensure():
-    """Panggil saat startup. Load .env atau jalankan wizard kalau belum ada."""
-    if not _ENV_FILE.exists():
-        _run_wizard()
-    load_dotenv(_ENV_FILE, override=True)
+    """Panggil saat startup. Load .env kalau ada, skip kalau belum — TUI handle setup."""
+    if _ENV_FILE.exists():
+        load_dotenv(_ENV_FILE, override=True)
 
 
-def _run_wizard():
-    """Setup wizard — tanya 3 field, simpan ke ~/.minimal/.env."""
-    print("\nNo config found. Quick setup:\n")
-    print("(Ctrl+C to abort)\n")
+def is_configured() -> bool:
+    """Return True kalau sudah ada API key yang valid."""
+    return bool(os.getenv("LLM_API_KEY", "").strip())
 
-    try:
-        default_url = "https://openrouter.ai/api/v1"
-        base_url = input("Provider base URL? (enter untuk openrouter): ").strip()
-        if not base_url:
-            base_url = default_url
 
-        api_key = input("API Key: ").strip()
-        model = input("Model: ").strip()
-    except KeyboardInterrupt:
-        print("\n\nAborted.")
-        raise SystemExit(0)
-
-    if not api_key or not model:
-        print("API key and model are required.")
-        raise SystemExit(1)
-
+def save_initial_config(pbase_url: str, papi_key: str, pmodel: str) -> None:
+    """Simpan config awal ke .env — dipanggil dari TUI setup flow."""
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     _ENV_FILE.write_text(
-        f"LLM_BASE_URL={base_url}\n"
-        f"LLM_API_KEY={api_key}\n"
-        f"LLM_MODEL={model}\n"
+        f"LLM_BASE_URL={pbase_url}\n"
+        f"LLM_API_KEY={papi_key}\n"
+        f"LLM_MODEL={pmodel}\n"
     )
-    print(f"\nConfig saved to {_ENV_FILE}\nStarting...\n")
+    load_dotenv(_ENV_FILE, override=True)
 
 
 # --- Getters ---

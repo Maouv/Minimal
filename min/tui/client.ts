@@ -35,6 +35,7 @@ export interface ConfigResponse {
   context_window: number
   timeout: number
   max_tokens: number
+  configured: boolean
 }
 
 export async function getConfig(): Promise<ConfigResponse> {

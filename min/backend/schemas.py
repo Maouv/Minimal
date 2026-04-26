@@ -14,6 +14,7 @@ class ConfigResponse(BaseModel):
     context_window: int
     timeout: int
     max_tokens: int
+    configured: bool
 
 
 class ProviderUpdateRequest(BaseModel):
@@ -65,3 +66,4 @@ class ContextDropRequest(BaseModel):
 class ContextListResponse(BaseModel):
     files: list[ContextFile]
     total_tokens: int
+
