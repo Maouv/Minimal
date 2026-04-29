@@ -582,7 +582,7 @@ def find_original_update_blocks(content: str):
         if stripped.startswith("```"):
             inner = stripped[3:].strip()
             # Kalau ada nama file setelah ```, set sebagai current_file
-            if inner and not inner.lower() in ("python", "js", "ts", "tsx", "go", "rust", "c", "cpp", "java", ""):
+            if inner and inner.lower() not in ("python", "js", "ts", "tsx", "go", "rust", "c", "cpp", "java", ""):
                 current_file = inner
             i += 1
             continue

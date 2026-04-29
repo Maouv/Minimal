@@ -23,7 +23,6 @@ def apply_edits(response: str, files: dict[str, str], mode: EditMode) -> list[Ed
     Return list EditResult — satu per file yang diedit.
     """
     if mode == "block":
-        from vendor.search_replace import find_original_update_blocks
         return _apply_editblock(response, files)
     elif mode == "udiff":
         return _apply_udiff(response, files)

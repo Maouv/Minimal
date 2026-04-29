@@ -20,7 +20,7 @@ import llm
 from schemas import (
     ConfigResponse, ProviderUpdateRequest,
     SessionCreateRequest, SessionListResponse, SessionMeta,
-    PromptRequest, ContextAddRequest, ContextDropRequest, ContextListResponse,
+    PromptRequest, ContextAddRequest, ContextDropRequest,
 )
 from prompts import ask_system_prompt, edit_system_prompt
 import os
@@ -500,7 +500,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
             f"  context files : {context_tokens:>7,}",
             f"  chat history  : {chat_tokens:>7,}  ({len(s.messages)} messages)",
             f"  system prompt : {system_tokens:>7,}",
-            f"  ─────────────────────",
+            "  ─────────────────────",
             f"  total         : {total:>7,}",
         ]
         yield sse("text", {"content": "\n".join(lines)})

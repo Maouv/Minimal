@@ -3,7 +3,6 @@
 # stripped: EditBlockCoder class, aider imports, base_coder dependency
 # kept: all standalone parse/apply functions
 
-import difflib
 import math
 import re
 from difflib import SequenceMatcher

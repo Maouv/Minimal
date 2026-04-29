@@ -11,13 +11,13 @@ import { consumeStream } from "../stream.ts"
 import { C, MODE_COLOR } from "../theme.ts"
 
 const SLASH_COMMANDS = [
-  { cmd: "/add",        desc: "tambah file ke context" },
-  { cmd: "/add -r",     desc: "tambah file sebagai read-only" },
-  { cmd: "/drop",       desc: "hapus file dari context" },
-  { cmd: "/edit-block", desc: "edit dengan SEARCH/REPLACE" },
-  { cmd: "/edit-udiff", desc: "edit dengan unified diff" },
-  { cmd: "/edit-whole", desc: "rewrite seluruh file" },
-  { cmd: "/ask",        desc: "kembali ke ask mode" },
+  { cmd: "/add",        desc: "add file to context" },
+  { cmd: "/add -r",     desc: "add file as read only" },
+  { cmd: "/drop",       desc: "delete file from context" },
+  { cmd: "/edit-block", desc: "edit with SEARCH/REPLACE" },
+  { cmd: "/edit-udiff", desc: "edit with unified diff" },
+  { cmd: "/edit-whole", desc: "rewrite whole file" },
+  { cmd: "/ask",        desc: "back to ask mode" },
   { cmd: "/undo",       desc: "undo last edit" },
   { cmd: "/diff",       desc: "show last diff" },
   { cmd: "/clear",      desc: "clear messages" },
@@ -26,11 +26,11 @@ const SLASH_COMMANDS = [
   { cmd: "/run",        desc: "run shell command" },
   { cmd: "/tokens",     desc: "show token usage" },
   { cmd: "/model",      desc: "switch model" },
-  { cmd: "/model-add",  desc: "tambah provider & model baru" },
+  { cmd: "/model-add",  desc: "add new provider" },
   { cmd: "/help",       desc: "show help" },
-  { cmd: "/init",       desc: "generate MINIMAL.md untuk direktori ini" },
-  { cmd: "/init --save", desc: "simpan draft ke MINIMAL.md" },
-  { cmd: "/exit",       desc: "keluar dari minimal" },
+  { cmd: "/init",       desc: "generate MINIMAL.md for current dir" },
+  { cmd: "/init --save", desc: "save draft to MINIMAL.md" },
+  { cmd: "/exit",       desc: "exit from minimal" },
 ]
 
 type AcMode = "command" | "file" | "dir"

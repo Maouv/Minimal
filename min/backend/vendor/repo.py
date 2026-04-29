@@ -2,8 +2,6 @@
 # stripped: GitRepo class (coupled ke aider io/prompts/utils)
 # replaced: fungsi git standalone yang dibutuhkan minimal
 
-import os
-from pathlib import Path
 
 try:
     import git
