@@ -1,21 +1,22 @@
 {
-  "name": "minimal-tui",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "bun run index.tsx",
-    "dev": "bun --watch run index.tsx"
-  },
-  "dependencies": {
-    "@opentui/core": "^0.1.102",
-    "@opentui/solid": "^0.1.102",
-    "solid-js": "^1.9.12",
-    "yargs": "^18.0.0"
-  },
-  "devDependencies": {
-    "@types/yargs": "^17.0.35",
-    "bun-types": "^1.2.0",
-    "typescript": "^5.0.0"
-  }
+	"name": "minimal-tui",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "bun run index.tsx",
+		"dev": "bun --watch run index.tsx"
+	},
+	"dependencies": {
+		"@opentui/core": "^0.1.102",
+		"@opentui/solid": "^0.1.102",
+		"solid-js": "^1.9.12",
+		"yargs": "^18.0.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.13",
+		"@types/yargs": "^17.0.35",
+		"bun-types": "^1.2.0",
+		"typescript": "^5.0.0"
+	}
 }
