@@ -1,7 +1,7 @@
 // context.tsx — sidebar kiri, daftar context files
 import { For, Show } from "solid-js"
 import { state } from "../state.ts"
-import { MK } from "../theme.ts"
+import { C } from "../theme.ts"
 
 function fmtK(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
@@ -14,18 +14,18 @@ export function ContextPanel() {
       flexGrow={0}
       flexShrink={0}
       flexDirection="column"
-      backgroundColor={MK.bg2}
-      borderRight
-      borderColor={MK.border}
+      backgroundColor={C.bg2}
+      border={["right"]}
+      borderColor={C.border}
     >
       {/* Header */}
       <box
         width="100%"
         height={1}
         paddingLeft={1}
-        backgroundColor={MK.bg2}
+        backgroundColor={C.bg2}
       >
-        <text fg={MK.comment}>context</text>
+        <text fg={C.gray}>context</text>
       </box>
 
       {/* File list */}
@@ -33,7 +33,7 @@ export function ContextPanel() {
         <box width="100%" flexDirection="column" paddingLeft={1} paddingRight={1}>
           <Show
             when={state.contextFiles.length > 0}
-            fallback={<text fg={MK.border}>no files</text>}
+            fallback={<text fg={C.border}>no files</text>}
           >
             <For each={state.contextFiles}>
               {(f) => {
@@ -43,10 +43,10 @@ export function ContextPanel() {
                 const tok  = f.token_count > 0 ? ` ${fmtK(f.token_count)}` : ""
                 return (
                   <box width="100%" flexDirection="column" marginBottom={0}>
-                    <text fg={f.readonly ? MK.comment : MK.green}>
+                    <text fg={f.readonly ? C.gray : C.green}>
                       {(f.readonly ? "○ " : "● ") + name}
                     </text>
-                    <text fg={MK.border} paddingLeft={2}>{dir + tok}</text>
+                    <text fg={C.border} paddingLeft={2}>{dir + tok}</text>
                   </box>
                 )
               }}
@@ -56,8 +56,8 @@ export function ContextPanel() {
       </scrollbox>
 
       {/* Footer token total */}
-      <box width="100%" height={1} paddingLeft={1} backgroundColor={MK.bg2}>
-        <text fg={MK.border}>
+      <box width="100%" height={1} paddingLeft={1} backgroundColor={C.bg2}>
+        <text fg={C.border}>
           {state.totalTokens > 0 ? `${fmtK(state.totalTokens)} tok` : ""}
         </text>
       </box>

@@ -349,7 +349,7 @@ export function InputBox() {
               focusedTextColor={isDisabled() ? C.gray2 : C.white}
               focused={!isDisabled()}
               onInput={(val: string) => { if (!isDisabled()) handleInput(val) }}
-              onSubmit={(val: string) => { if (!isDisabled()) handleSubmit(val) }}
+              onSubmit={() => { if (!isDisabled()) handleSubmit(inputRef?.value ?? "") }}
             />
           </box>
 

@@ -604,10 +604,10 @@ def find_original_update_blocks(content: str):
             i += 1
             search_lines = []
             while i < len(lines):
-                l = lines[i]
-                if l.strip() in ("=======", "=======\n"):
+                line = lines[i]
+                if line.strip() in ("=======", "=======\n"):
                     break
-                search_lines.append(l)
+                search_lines.append(line)
                 i += 1
             else:
                 raise ValueError("No ======= found after SEARCH block")
@@ -617,10 +617,10 @@ def find_original_update_blocks(content: str):
             # Collect REPLACE block
             replace_lines = []
             while i < len(lines):
-                l = lines[i]
-                if l.strip().startswith(">>>>>>> REPLACE") or l.strip().startswith(">>>>>>>REPLACE"):
+                line = lines[i]
+                if line.strip().startswith(">>>>>>> REPLACE") or line.strip().startswith(">>>>>>>REPLACE"):
                     break
-                replace_lines.append(l)
+                replace_lines.append(line)
                 i += 1
             else:
                 raise ValueError("No >>>>>>> REPLACE found")

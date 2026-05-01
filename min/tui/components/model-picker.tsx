@@ -294,7 +294,7 @@ export function ModelPicker(props: Props) {
               focusedTextColor={C.white}
               focused
               onInput={(val: string) => _handleInput(val)}
-              onSubmit={(val: string) => _handleSubmit(val)}
+              onSubmit={() => _handleSubmit(inputRef?.value ?? "")}
             />
             <Show when={!!error()}>
               <text fg={C.pink} marginTop={1}>{error()}</text>

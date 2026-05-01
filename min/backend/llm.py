@@ -127,9 +127,9 @@ async def stream_chat(
 
     client = _client()
 
-    stream = await client.chat.completions.create(
+    stream = await client.chat.completions.create(  # type: ignore[call-overload]
         model=resolved_model,
-        messages=full_messages,
+        messages=full_messages,  # type: ignore[arg-type]
         max_tokens=config.max_tokens(),
         stream=True,
         stream_options={"include_usage": True},

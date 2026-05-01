@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.abspath('min/backend'))
 print("Mengecek import...")
 try:
     from coder import apply_edits
-    from commands import EditMode
     print("✅ Import berhasil!")
 except Exception as e:
     print(f"❌ Error saat import: {e}")

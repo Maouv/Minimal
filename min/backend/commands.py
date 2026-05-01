@@ -7,7 +7,7 @@ from typing import Literal
 
 EditMode = Literal["block", "udiff", "whole"]
 
-EDIT_COMMANDS = {
+EDIT_COMMANDS: dict[str, EditMode] = {
     "/edit-block": "block",
     "/edit-udiff": "udiff",
     "/edit-whole": "whole",

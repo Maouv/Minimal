@@ -410,6 +410,10 @@ async def context_list(session_id: str):
 
 # --- Prompt + SSE stream ---
 
+def sse(event_type: str, data: dict) -> str:
+    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
 @app.post("/session/{session_id}/init")
 async def prompt(session_id: str, req: PromptRequest):
     s = await session_store.get_or_load(session_id)
@@ -437,9 +441,6 @@ async def prompt(session_id: str, req: PromptRequest):
 
 async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     """Core prompt handler. Parse command, dispatch, stream response."""
-
-    def sse(event_type: str, data: dict) -> str:
-        return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
     command = cmd_parser.parse(raw_input)
 
@@ -640,7 +641,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
 
     system_prompt = (
         edit_system_prompt(effective_mode, s.context.get_editable())
-        if is_edit
+        if is_edit and effective_mode is not None
         else ask_system_prompt(s.context.get_all())
     )
 
@@ -660,10 +661,8 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
             system_prompt=system_prompt,
         ):
             if thinking is not None:
-                import sys; print(f"DEBUG stream: thinking chunk len={len(thinking)}", file=sys.stderr, flush=True)
                 yield sse("thinking", {"content": thinking})
             if token is not None:
-                import sys; print(f"DEBUG stream: token chunk len={len(token)} preview={token[:20]!r}", file=sys.stderr, flush=True)
                 full_response += token
                 yield sse("token", {"content": token})
             elif u is not None:
@@ -680,20 +679,16 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         })
 
         # apply edit kalau mode edit
-        if is_edit and clean_response:
-            import sys
+        if is_edit and effective_mode is not None and clean_response:
             _editable = s.context.get_editable()
-            print(f"DEBUG apply_edits mode={effective_mode} files={list(_editable.keys())} response_len={len(clean_response)}", file=sys.stderr, flush=True)
             edit_results = coder.apply_edits(
                 clean_response, _editable, effective_mode
             )
-            print(f"DEBUG edit_results count={len(edit_results)}", file=sys.stderr, flush=True)
 
             applied_files = []
             failed_files = []
 
             for result in edit_results:
-                import sys; print(f"DEBUG edit result: success={result.success} file={result.file!r} error={result.error!r}", file=sys.stderr, flush=True)
                 if result.success:
                     written = coder.write_to_disk(result)
                     verified = coder.verify(result) if written else False

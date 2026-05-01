@@ -19,7 +19,8 @@ def hunk_to_before_after(hunk, lines=False):
     before = []
     after = []
     for line in hunk:
-        if not line: continue
+        if not line:
+            continue
         op = line[0]
         rest = line[1:]
         if op == " ":
@@ -29,13 +30,15 @@ def hunk_to_before_after(hunk, lines=False):
             before.append(rest)
         elif op == "+":
             after.append(rest)
-    
-    if lines: return before, after
+
+    if lines:
+        return before, after
     return "".join(before), "".join(after)
 
 def directly_apply_hunk(content, hunk):
     before, after = hunk_to_before_after(hunk)
-    if not before: return None
+    if not before:
+        return None
     from .search_replace import replace_most_similar_chunk
     return replace_most_similar_chunk(content, before, after)
 

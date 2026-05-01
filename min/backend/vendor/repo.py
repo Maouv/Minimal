@@ -5,7 +5,7 @@
 
 try:
     import git
-    ANY_GIT_ERROR = (
+    ANY_GIT_ERROR: tuple[type[Exception], ...] = (
         git.exc.ODBError,
         git.exc.GitError,
         git.exc.InvalidGitRepositoryError,

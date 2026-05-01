@@ -44,7 +44,7 @@ class Session:
         })
 
     async def write_message(self, role: str, content: str, usage: dict | None = None):
-        record = {
+        record: dict[str, object] = {
             "type": role,
             "content": content,
             "timestamp": datetime.now(timezone.utc).isoformat(),

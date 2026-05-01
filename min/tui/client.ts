@@ -52,6 +52,7 @@ export interface SessionMeta {
   session_id: string
   created_at: string | null
   model: string | null
+  messages?: { role: string; content: string }[]
 }
 
 export async function createSession(model?: string): Promise<SessionMeta> {

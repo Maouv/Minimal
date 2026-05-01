@@ -159,7 +159,7 @@ function DiffBlock(props: { diff: string; file: string }) {
             }
           >
             {/* line number */}
-            <text fg={C.gray2} width={4} textAlign="right" marginRight={1}>
+            <text fg={C.gray2} width={4} marginRight={1}>
               {line.type === "removed" ? "" : String(line.lineNo)}
             </text>
             {/* sign */}
