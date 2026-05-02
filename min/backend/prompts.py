@@ -177,5 +177,3 @@ Rules:
 - Output the ENTIRE file content — not just the changed parts
 - No blank line between filename and opening ```
 - Do not wrap the filename in backticks or other markers"""
-
-

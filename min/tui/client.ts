@@ -46,10 +46,6 @@ export async function getConfig(): Promise<ConfigResponse> {
 	return req("GET", "/config");
 }
 
-export async function setModel(model: string): Promise<void> {
-	await req("POST", "/config/providers", { model });
-}
-
 // ── Session ───────────────────────────────────────────────────────────────────
 
 export interface SessionMeta {
@@ -61,11 +57,6 @@ export interface SessionMeta {
 
 export async function createSession(model?: string): Promise<SessionMeta> {
 	return req("POST", "/session", model ? { model } : {});
-}
-
-export async function listSessions(): Promise<SessionMeta[]> {
-	const data = await req<{ sessions: SessionMeta[] }>("GET", "/session");
-	return data.sessions;
 }
 
 export async function getSession(id: string): Promise<SessionMeta> {
@@ -103,40 +94,12 @@ export interface ContextFile {
 	last_modified: string;
 }
 
-export interface ContextListResponse {
-	files: ContextFile[];
-	total_tokens: number;
-}
-
-export async function contextAdd(
-	sessionId: string,
-	path: string,
-	readonly = false,
-): Promise<void> {
-	await req("POST", "/context/add", { session_id: sessionId, path, readonly });
-}
-
-export async function contextDrop(
-	sessionId: string,
-	path: string,
-): Promise<void> {
-	await req("POST", "/context/drop", { session_id: sessionId, path });
-}
-
-export async function contextList(
-	sessionId: string,
-): Promise<ContextListResponse> {
-	return req("GET", `/context?session_id=${sessionId}`);
-}
-
 // ── Project files ─────────────────────────────────────────────────────────────
 
-export interface ProjectFilesResponse {
+export async function listProjectFiles(): Promise<{
 	files: string[];
 	cwd: string;
-}
-
-export async function listProjectFiles(): Promise<ProjectFilesResponse> {
+}> {
 	return req("GET", "/project/files");
 }
 
@@ -146,24 +109,17 @@ export interface ProjectEntry {
 	is_dir: boolean;
 }
 
-export interface ProjectEntriesResponse {
-	entries: ProjectEntry[];
-	cwd: string;
-}
-
 export async function listProjectEntries(
 	path = "",
-): Promise<ProjectEntriesResponse> {
+): Promise<{ entries: ProjectEntry[]; cwd: string }> {
 	const q = path ? `?path=${encodeURIComponent(path)}` : "";
 	return req("GET", `/project/entries${q}`);
 }
 
-export interface ProjectDirsResponse {
+export async function listProjectDirs(): Promise<{
 	dirs: string[];
 	cwd: string;
-}
-
-export async function listProjectDirs(): Promise<ProjectDirsResponse> {
+}> {
 	return req("GET", "/project/dirs");
 }
 

@@ -27,7 +27,11 @@ async def probe(base_url: str, api_key: str) -> ProbeResult:
             resp = await client.get(url, headers=headers)
 
         if resp.status_code == 404:
-            return {"ok": False, "models": [], "error": "Provider does not support /v1/models"}
+            return {
+                "ok": False,
+                "models": [],
+                "error": "Provider does not support /v1/models",
+            }
         if resp.status_code == 401:
             return {"ok": False, "models": [], "error": "Invalid API key"}
         if resp.status_code == 403:
@@ -39,7 +43,9 @@ async def probe(base_url: str, api_key: str) -> ProbeResult:
 
         # OpenAI format: { "data": [ { "id": "..." }, ... ] }
         if isinstance(data, dict) and "data" in data:
-            models = [m["id"] for m in data["data"] if isinstance(m, dict) and "id" in m]
+            models = [
+                m["id"] for m in data["data"] if isinstance(m, dict) and "id" in m
+            ]
         # Beberapa provider return list langsung: [ { "id": "..." }, ... ]
         elif isinstance(data, list):
             models = [m["id"] for m in data if isinstance(m, dict) and "id" in m]

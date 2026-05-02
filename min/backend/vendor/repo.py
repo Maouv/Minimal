@@ -5,13 +5,20 @@
 
 try:
     import git
+
     ANY_GIT_ERROR: tuple[type[Exception], ...] = (
         git.exc.ODBError,
         git.exc.GitError,
         git.exc.InvalidGitRepositoryError,
         git.exc.GitCommandNotFound,
-        OSError, IndexError, BufferError, TypeError,
-        ValueError, AttributeError, AssertionError, TimeoutError,
+        OSError,
+        IndexError,
+        BufferError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        AssertionError,
+        TimeoutError,
     )
 except ImportError:
     git = None

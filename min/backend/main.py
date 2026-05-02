@@ -18,13 +18,34 @@ import commands as cmd_parser
 import coder
 import llm
 from schemas import (
-    ConfigResponse, ProviderUpdateRequest,
-    SessionCreateRequest, SessionListResponse, SessionMeta,
-    PromptRequest, ContextAddRequest, ContextDropRequest,
+    ConfigResponse,
+    SessionCreateRequest,
+    SessionListResponse,
+    SessionMeta,
+    PromptRequest,
+    ContextAddRequest,
+    ContextDropRequest,
 )
 from prompts import ask_system_prompt, edit_system_prompt
 import os
 from pathlib import Path
+
+# Directories skipped when walking project tree (files, dirs, entries endpoints)
+_SKIP_DIRS = {
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".venv",
+    "venv",
+    ".mypy_cache",
+    ".ruff_cache",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "target",
+    ".cargo",
+}
 
 
 @asynccontextmanager
@@ -34,10 +55,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="minimal", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
 
 
 # --- Health ---
+
 
 @app.get("/health")
 async def health():
@@ -45,6 +69,7 @@ async def health():
 
 
 # --- Repo ---
+
 
 @app.post("/repo/map")
 async def repo_map(req: dict):
@@ -103,6 +128,7 @@ def _build_init_context(ctx) -> str:
 
 # --- Config ---
 
+
 @app.get("/config")
 async def get_config() -> ConfigResponse:
     return ConfigResponse(
@@ -114,11 +140,6 @@ async def get_config() -> ConfigResponse:
         max_tokens=config.max_tokens(),
         configured=config.is_configured(),
     )
-
-
-@app.post("/config/providers")
-async def update_provider(req: ProviderUpdateRequest):
-    return {"ok": True, "model": req.model}
 
 
 @app.get("/providers")
@@ -135,6 +156,7 @@ async def probe_provider(req: dict):
     Lookup by provider_name dulu (jika dikirim), fallback ke base_url.
     """
     from probe_models import probe
+
     base_url = req.get("base_url", "").strip()
     api_key = req.get("api_key", "").strip()
     provider_name = req.get("provider_name", "").strip()
@@ -150,7 +172,6 @@ async def probe_provider(req: dict):
         if not provider:
             provider = next((p for p in providers if p["base_url"] == base_url), None)
         if provider:
-            import os
             api_key = os.getenv(provider["env_key"], config.api_key())
         else:
             api_key = config.api_key()
@@ -183,12 +204,16 @@ async def switch_model(req: dict):
     provider_name = req.get("provider_name", "").strip()
     model_id = req.get("model_id", "").strip()
     if not provider_name or not model_id:
-        raise HTTPException(status_code=400, detail="provider_name and model_id required")
+        raise HTTPException(
+            status_code=400, detail="provider_name and model_id required"
+        )
 
     providers = config.load_providers()
     provider = next((p for p in providers if p["name"] == provider_name), None)
     if not provider:
-        raise HTTPException(status_code=404, detail=f"Provider '{provider_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Provider '{provider_name}' not found"
+        )
 
     config.switch_provider_model(provider, model_id)
     return {"ok": True, "model": model_id, "base_url": provider["base_url"]}
@@ -196,21 +221,13 @@ async def switch_model(req: dict):
 
 @app.get("/project/current")
 async def project_current():
-    import os
+
     return {"path": os.getcwd()}
 
 
 @app.get("/project/files")
 async def project_files():
     """Walk CWD, return all files only (skip hidden + noise dirs)."""
-    import os
-    from pathlib import Path
-
-    SKIP_DIRS = {
-        ".git", "__pycache__", "node_modules", ".venv", "venv",
-        ".mypy_cache", ".ruff_cache", "dist", "build", ".next",
-        ".nuxt", "target", ".cargo",
-    }
 
     def walk(root: Path) -> list[str]:
         results: list[str] = []
@@ -219,7 +236,7 @@ async def project_files():
                 if entry.name.startswith(".") and entry.name not in {".env"}:
                     continue
                 if entry.is_dir():
-                    if entry.name in SKIP_DIRS:
+                    if entry.name in _SKIP_DIRS:
                         continue
                     results.extend(walk(entry))
                 elif entry.is_file():
@@ -233,28 +250,19 @@ async def project_files():
     return {"files": files, "cwd": str(cwd)}
 
 
-
 @app.get("/project/dirs")
 async def project_dirs():
     """Walk CWD recursively, return all dirs (skip hidden + noise). Dipakai /init autocomplete."""
-    import os
-    from pathlib import Path
-
-    SKIP_DIRS = {
-        ".git", "__pycache__", "node_modules", ".venv", "venv",
-        ".mypy_cache", ".ruff_cache", "dist", "build", ".next",
-        ".nuxt", "target", ".cargo",
-    }
 
     def walk(root: Path, cwd: Path) -> list[str]:
-        results: list[str]= []
+        results: list[str] = []
         try:
             for entry in sorted(root.iterdir()):
                 if entry.name.startswith("."):
                     continue
                 if not entry.is_dir():
                     continue
-                if entry.name in SKIP_DIRS:
+                if entry.name in _SKIP_DIRS:
                     continue
                 rel = str(entry.relative_to(cwd)) + "/"
                 results.append(rel)
@@ -267,6 +275,7 @@ async def project_dirs():
     dirs = walk(cwd, cwd)
     return {"dirs": dirs, "cwd": str(cwd)}
 
+
 @app.get("/project/entries")
 async def project_entries(path: str = ""):
     """
@@ -274,14 +283,6 @@ async def project_entries(path: str = ""):
     Default: CWD. Dipakai untuk autocomplete drill-down.
     Returns: { entries: [{name, path, is_dir}], cwd }
     """
-    import os
-    from pathlib import Path
-
-    SKIP_DIRS = {
-        ".git", "__pycache__", "node_modules", ".venv", "venv",
-        ".mypy_cache", ".ruff_cache", "dist", "build", ".next",
-        ".nuxt", "target", ".cargo",
-    }
 
     cwd = Path(os.getcwd())
     target = (cwd / path).resolve() if path else cwd
@@ -300,14 +301,16 @@ async def project_entries(path: str = ""):
         for entry in sorted(target.iterdir()):
             if entry.name.startswith(".") and entry.name not in {".env"}:
                 continue
-            if entry.is_dir() and entry.name in SKIP_DIRS:
+            if entry.is_dir() and entry.name in _SKIP_DIRS:
                 continue
             rel = str(entry.relative_to(cwd))
-            entries.append({
-                "name": entry.name + ("/" if entry.is_dir() else ""),
-                "path": rel + ("/" if entry.is_dir() else ""),
-                "is_dir": entry.is_dir(),
-            })
+            entries.append(
+                {
+                    "name": entry.name + ("/" if entry.is_dir() else ""),
+                    "path": rel + ("/" if entry.is_dir() else ""),
+                    "is_dir": entry.is_dir(),
+                }
+            )
     except PermissionError:
         pass
 
@@ -315,6 +318,7 @@ async def project_entries(path: str = ""):
 
 
 # --- Session ---
+
 
 @app.post("/session")
 async def create_session(req: SessionCreateRequest = SessionCreateRequest()):
@@ -324,9 +328,9 @@ async def create_session(req: SessionCreateRequest = SessionCreateRequest()):
 
 @app.get("/session")
 async def list_sessions():
-    return SessionListResponse(sessions=[
-        SessionMeta(**s) for s in session_store.list_all()
-    ])
+    return SessionListResponse(
+        sessions=[SessionMeta(**s) for s in session_store.list_all()]
+    )
 
 
 @app.get("/session/{session_id}")
@@ -339,10 +343,7 @@ async def get_session(session_id: str):
         "model": s.model,
         "created_at": s.created_at,
         "message_count": len(s.messages),
-        "messages": [
-            {"role": m["role"], "content": m["content"]}
-            for m in s.messages
-        ],
+        "messages": [{"role": m["role"], "content": m["content"]} for m in s.messages],
     }
 
 
@@ -374,6 +375,7 @@ async def update_session_model(session_id: str, req: dict):
 
 
 # --- Context endpoints ---
+
 
 @app.post("/context/add")
 async def context_add(req: ContextAddRequest):
@@ -409,6 +411,7 @@ async def context_list(session_id: str):
 
 
 # --- Prompt + SSE stream ---
+
 
 def sse(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
@@ -487,12 +490,10 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
 
     if command.kind == "tokens":
         from context import _estimate_tokens
+
         context_tokens = s.context.total_tokens()
         # Estimasi chat history tokens (semua messages di session)
-        chat_tokens = sum(
-            _estimate_tokens(m.get("content", ""))
-            for m in s.messages
-        )
+        chat_tokens = sum(_estimate_tokens(m.get("content", "")) for m in s.messages)
         # Estimasi system prompt: ~200 token base + context overhead
         system_tokens = 200 + context_tokens // 10
         total = context_tokens + chat_tokens + system_tokens
@@ -513,13 +514,18 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         return
 
     if command.kind == "init":
-
         if command.args == "--save":
             if not s.last_init_draft:
                 yield sse("error", {"message": "Tidak ada draft. Jalankan /init dulu."})
                 yield sse("done", {"input_tokens": 0, "output_tokens": 0})
                 return
-            target = Path(s.last_init_path or os.environ.get("MINIMAL_PROJECT_ROOT", os.getcwd())) / "MINIMAL.md"
+            target = (
+                Path(
+                    s.last_init_path
+                    or os.environ.get("MINIMAL_PROJECT_ROOT", os.getcwd())
+                )
+                / "MINIMAL.md"
+            )
             target.write_text(s.last_init_draft, encoding="utf-8")
             yield sse("text", {"content": f"✓ Saved to {target}"})
             yield sse("done", {"input_tokens": 0, "output_tokens": 0})
@@ -538,11 +544,13 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                 return
 
         import repo as repo_module
+
         ctx = repo_module.scan(root)
         s.last_init_path = str(root)
 
         context_str = _build_init_context(ctx)
         import prompts
+
         system = prompts.init_system()
         messages = [{"role": "user", "content": context_str}]
 
@@ -555,10 +563,13 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                 yield sse("token", {"content": token})
             if usage:
                 s.last_init_draft = full_response
-                yield sse("done", {
-                    "input_tokens": usage.input_tokens,
-                    "output_tokens": usage.output_tokens,
-                })
+                yield sse(
+                    "done",
+                    {
+                        "input_tokens": usage.input_tokens,
+                        "output_tokens": usage.output_tokens,
+                    },
+                )
         return
 
     if command.kind == "ask":
@@ -597,8 +608,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         try:
             subprocess.run(["git", "add", "-A"], capture_output=True, text=True)
             result = subprocess.run(
-                ["git", "commit", "-m", msg],
-                capture_output=True, text=True
+                ["git", "commit", "-m", msg], capture_output=True, text=True
             )
             yield sse("commit", {"output": result.stdout.strip()})
         except Exception as e:
@@ -608,8 +618,7 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     if command.kind == "run":
         try:
             result = subprocess.run(
-                command.args, shell=True,
-                capture_output=True, text=True, timeout=30
+                command.args, shell=True, capture_output=True, text=True, timeout=30
             )
             output = (result.stdout + result.stderr).strip()
             yield sse("run", {"output": output, "returncode": result.returncode})
@@ -651,8 +660,8 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
     full_response = ""
     usage = None
 
-    # heartbeat task — kirim ping setiap 2 detik selama stream aktif
-    heartbeat_task = asyncio.create_task(_run_heartbeat())
+    # Cancellable task used as a handle to abort the stream from the outside
+    heartbeat_task = asyncio.create_task(_noop_cancellable())
 
     try:
         async for token, u, thinking in llm.stream_chat(
@@ -673,17 +682,19 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         s.add_message("user", command.args or raw_input)
         s.add_message("assistant", clean_response)
         await s.write_message("user", command.args or raw_input)
-        await s.write_message("assistant", clean_response, {
-            "input_tokens": usage.input_tokens if usage else 0,
-            "output_tokens": usage.output_tokens if usage else 0,
-        })
+        await s.write_message(
+            "assistant",
+            clean_response,
+            {
+                "input_tokens": usage.input_tokens if usage else 0,
+                "output_tokens": usage.output_tokens if usage else 0,
+            },
+        )
 
         # apply edit kalau mode edit
         if is_edit and effective_mode is not None and clean_response:
             _editable = s.context.get_editable()
-            edit_results = coder.apply_edits(
-                clean_response, _editable, effective_mode
-            )
+            edit_results = coder.apply_edits(clean_response, _editable, effective_mode)
 
             applied_files = []
             failed_files = []
@@ -697,21 +708,27 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                         await s.context.reload(result.file)
                         await s.write_edit(result.file, result.diff, True)
                         applied_files.append(result.file)
-                        yield sse("edit", {
-                            "file": result.file,
-                            "diff": result.diff,
-                            "success": True,
-                        })
+                        yield sse(
+                            "edit",
+                            {
+                                "file": result.file,
+                                "diff": result.diff,
+                                "success": True,
+                            },
+                        )
                     else:
                         coder.rollback(result)
                         await s.write_edit(result.file, result.diff, False)
                         failed_files.append(result.file)
-                        yield sse("edit", {
-                            "file": result.file,
-                            "diff": "",
-                            "success": False,
-                            "error": "Edit failed verification — rolled back",
-                        })
+                        yield sse(
+                            "edit",
+                            {
+                                "file": result.file,
+                                "diff": "",
+                                "success": False,
+                                "error": "Edit failed verification — rolled back",
+                            },
+                        )
                 else:
                     failed_files.append(result.file or "?")
                     yield sse("error", {"message": result.error})
@@ -722,17 +739,29 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
             summary_parts = []
             if applied_files:
                 files_str = ", ".join(f.split("/")[-1] for f in applied_files)
-                summary_parts.append(f"✓ Applied to {len(applied_files)} file(s): {files_str}")
+                summary_parts.append(
+                    f"✓ Applied to {len(applied_files)} file(s): {files_str}"
+                )
             if failed_files:
                 files_str = ", ".join(f.split("/")[-1] for f in failed_files)
                 summary_parts.append(f"✗ Failed: {files_str}")
             if summary_parts:
-                yield sse("applied_summary", {"message": "\n".join(summary_parts), "applied": applied_files, "failed": failed_files})
+                yield sse(
+                    "applied_summary",
+                    {
+                        "message": "\n".join(summary_parts),
+                        "applied": applied_files,
+                        "failed": failed_files,
+                    },
+                )
 
-        yield sse("done", {
-            "input_tokens": usage.input_tokens if usage else 0,
-            "output_tokens": usage.output_tokens if usage else 0,
-        })
+        yield sse(
+            "done",
+            {
+                "input_tokens": usage.input_tokens if usage else 0,
+                "output_tokens": usage.output_tokens if usage else 0,
+            },
+        )
 
     except Exception as e:
         yield sse("error", {"message": str(e)})
@@ -740,11 +769,10 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         heartbeat_task.cancel()
 
 
-async def _run_heartbeat():
-    """Dummy task untuk di-cancel saat stream selesai."""
-    await asyncio.sleep(999999)
+async def _noop_cancellable():
+    """Long-sleeping task used solely as a cancellable handle for stream abort."""
+    await asyncio.sleep(999_999)
 
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=4096, reload=False)
-

@@ -37,12 +37,13 @@ class _ThinkingStateMachine:
     State machine untuk detect thinking blocks saat streaming token-by-token.
     Lebih reliable dari count-based karena handle partial tags dan nested content.
     """
-    OPEN_TAGS  = ("<think>", "<thinking>")
+
+    OPEN_TAGS = ("<think>", "<thinking>")
     CLOSE_TAGS = ("</think>", "</thinking>")
 
     def __init__(self):
         self.in_thinking = False
-        self._buf = ""          # accumulate chars untuk lookahead partial tags
+        self._buf = ""  # accumulate chars untuk lookahead partial tags
 
     def feed(self, token: str) -> tuple[str, str]:
         """
@@ -60,7 +61,7 @@ class _ThinkingStateMachine:
                 if found is not None:
                     # Emit semua sebelum tag sebagai text
                     text_out += self._buf[:found]
-                    self._buf = self._buf[found + len(tag):]
+                    self._buf = self._buf[found + len(tag) :]
                     self.in_thinking = True
                 elif self._partial_match(self._buf, self.OPEN_TAGS):
                     # Partial tag di ujung buffer — tunggu token berikutnya
@@ -76,7 +77,7 @@ class _ThinkingStateMachine:
                 if found is not None:
                     # Emit semua sebelum closing tag sebagai thinking
                     thinking_out += self._buf[:found]
-                    self._buf = self._buf[found + len(tag):]
+                    self._buf = self._buf[found + len(tag) :]
                     self.in_thinking = False
                 elif self._partial_match(self._buf, self.CLOSE_TAGS):
                     # Partial closing tag — tunggu
@@ -167,4 +168,3 @@ async def stream_chat(
             yield sm._buf, None, None
 
     yield None, Usage(input_tokens=input_tokens, output_tokens=output_tokens), None
-

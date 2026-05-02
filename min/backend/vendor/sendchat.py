@@ -1,15 +1,17 @@
 # vendored from aider/sendchat.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
 # stripped: aider.dump, aider.utils.format_messages
 
+
 def __format_messages(messages):
-    return '\n'.join(f"{m['role']}: {m['content']}" for m in messages)
+    return "\n".join(f"{m['role']}: {m['content']}" for m in messages)
 
 
 # vendored from aider/sendchat.py | commit: f09d70659ae90a0d068c80c288cbb55f2d3c3755
 # stripped: aider.dump, aider.utils.format_messages
 
+
 def ___format_messages(messages):
-    return '\n'.join(f"{m['role']}: {m['content']}" for m in messages)
+    return "\n".join(f"{m['role']}: {m['content']}" for m in messages)
 
 
 def sanity_check_messages(messages):
@@ -27,7 +29,9 @@ def sanity_check_messages(messages):
 
         if last_role and role == last_role:
             turns = __format_messages(messages)
-            raise ValueError("Messages don't properly alternate user/assistant:\n\n" + turns)
+            raise ValueError(
+                "Messages don't properly alternate user/assistant:\n\n" + turns
+            )
 
         last_role = role
         last_non_system_role = role

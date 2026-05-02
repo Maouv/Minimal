@@ -22,7 +22,9 @@ def perfect_or_whitespace(whole_lines, part_lines, replace_lines):
     res = perfect_replace(whole_lines, part_lines, replace_lines)
     if res:
         return res
-    res = replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replace_lines)
+    res = replace_part_with_missing_leading_whitespace(
+        whole_lines, part_lines, replace_lines
+    )
     if res:
         return res
 
@@ -96,7 +98,9 @@ def try_dotdotdots(whole, part, replace):
         return whole.replace(part, replace, 1)
 
 
-def replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replace_lines):
+def replace_part_with_missing_leading_whitespace(
+    whole_lines, part_lines, replace_lines
+):
     leading = [len(p) - len(p.lstrip()) for p in part_lines if p.strip()]
     if leading and min(leading) > 0:
         leading = min(leading)
@@ -106,7 +110,9 @@ def replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replac
     if not res:
         return
     leading = res
-    replace_lines = [leading + rline if rline.strip() else rline for rline in replace_lines]
+    replace_lines = [
+        leading + rline if rline.strip() else rline for rline in replace_lines
+    ]
     part_lines = [leading + pline for pline in part_lines]
     return perfect_replace(whole_lines, part_lines, replace_lines)
 
@@ -204,7 +210,9 @@ def find_original_update_blocks(content, fence=DEFAULT_FENCE, valid_fnames=None)
         if piece != "<<<<<<< SEARCH\n":
             if i > 0:
                 prior = pieces[i - 1]
-                fname = find_filename(prior.splitlines(keepends=True), fence, valid_fnames)
+                fname = find_filename(
+                    prior.splitlines(keepends=True), fence, valid_fnames
+                )
                 yield fname, None, None
             continue
         rest = pieces[i + 1] if i + 1 < len(pieces) else ""

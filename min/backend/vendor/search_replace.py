@@ -16,7 +16,6 @@ except ImportError:
 from diff_match_patch import diff_match_patch
 
 
-
 class RelativeIndenter:
     """Rewrites text files to have relative indentation, which involves
     reformatting the leading white space on lines.  This format makes
@@ -324,12 +323,11 @@ def dmp_apply(texts, remap=True):
 
 
 def lines_to_chars(lines, mapping):
-    new_text = []
+    chars: list[str] = []
     for char in lines:
-        new_text.append(mapping[ord(char)])
+        chars.append(mapping[ord(char)])
 
-    new_text = "".join(new_text)
-    return new_text
+    return "".join(chars)
 
 
 def dmp_lines_apply(texts):
@@ -399,7 +397,9 @@ def diff_lines(search_text, replace_text):
     dmp = diff_match_patch()
     dmp.Diff_Timeout = 5
     # dmp.Diff_EditCost = 16
-    search_lines, replace_lines, mapping = dmp.diff_linesToChars(search_text, replace_text)
+    search_lines, replace_lines, mapping = dmp.diff_linesToChars(
+        search_text, replace_text
+    )
 
     diff_lines = dmp.diff_main(search_lines, replace_lines, None)
     dmp.diff_cleanupSemantic(diff_lines)
@@ -475,6 +475,7 @@ def try_strategy(texts, strategy, preproc):
         res = reverse_lines(res)
 
     if res and preproc_relative_indent:
+        assert ri is not None  # set when preproc_relative_indent is True
         try:
             res = ri.make_absolute(res)
         except ValueError:
@@ -492,7 +493,6 @@ def strip_blank_lines(texts):
 def read_text(fname):
     text = Path(fname).read_text()
     return text
-
 
 
 all_preprocs = [
@@ -514,23 +514,6 @@ udiff_strategies = [
     (dmp_lines_apply, all_preprocs),
 ]
 
-all_preprocs = [
-    (False, False, False),
-    (True, False, False),
-    (False, True, False),
-    (True, True, False),
-]
-
-editblock_strategies = [
-    (search_and_replace, all_preprocs),
-    (dmp_lines_apply, all_preprocs),
-]
-
-udiff_strategies = [
-    (search_and_replace, all_preprocs),
-    (dmp_lines_apply, all_preprocs),
-]
-
 
 # ── find_original_update_blocks ──────────────────────────────────────────────
 # Parse LLM response untuk SEARCH/REPLACE blocks format aider edit-block.
@@ -541,6 +524,7 @@ udiff_strategies = [
 #   =======
 #   <replacement code>
 #   >>>>>>> REPLACE
+
 
 def find_original_update_blocks(content: str):
     """
@@ -582,7 +566,18 @@ def find_original_update_blocks(content: str):
         if stripped.startswith("```"):
             inner = stripped[3:].strip()
             # Kalau ada nama file setelah ```, set sebagai current_file
-            if inner and inner.lower() not in ("python", "js", "ts", "tsx", "go", "rust", "c", "cpp", "java", ""):
+            if inner and inner.lower() not in (
+                "python",
+                "js",
+                "ts",
+                "tsx",
+                "go",
+                "rust",
+                "c",
+                "cpp",
+                "java",
+                "",
+            ):
                 current_file = inner
             i += 1
             continue
@@ -593,12 +588,19 @@ def find_original_update_blocks(content: str):
                 # Coba ambil filename dari baris sebelumnya
                 for back in range(i - 1, max(i - 5, -1), -1):
                     candidate = lines[back].strip()
-                    if candidate and not candidate.startswith("#") and not candidate.startswith("```") and not candidate.startswith("<"):
+                    if (
+                        candidate
+                        and not candidate.startswith("#")
+                        and not candidate.startswith("```")
+                        and not candidate.startswith("<")
+                    ):
                         current_file = candidate
                         break
 
             if current_file is None:
-                raise ValueError(f"No filename found before SEARCH block at line {i+1}")
+                raise ValueError(
+                    f"No filename found before SEARCH block at line {i + 1}"
+                )
 
             # Collect SEARCH block
             i += 1
@@ -618,7 +620,9 @@ def find_original_update_blocks(content: str):
             replace_lines = []
             while i < len(lines):
                 line = lines[i]
-                if line.strip().startswith(">>>>>>> REPLACE") or line.strip().startswith(">>>>>>>REPLACE"):
+                if line.strip().startswith(
+                    ">>>>>>> REPLACE"
+                ) or line.strip().startswith(">>>>>>>REPLACE"):
                     break
                 replace_lines.append(line)
                 i += 1
@@ -635,7 +639,12 @@ def find_original_update_blocks(content: str):
             continue
 
         # Baris yang bisa jadi filename: tidak kosong, tidak comment, tidak code
-        if stripped and not stripped.startswith("#") and not stripped.startswith("//") and not stripped.startswith("<"):
+        if (
+            stripped
+            and not stripped.startswith("#")
+            and not stripped.startswith("//")
+            and not stripped.startswith("<")
+        ):
             # Hanya set jika terlihat seperti path (ada . atau /)
             if "." in stripped or "/" in stripped:
                 current_file = stripped
@@ -646,6 +655,7 @@ def find_original_update_blocks(content: str):
 # ── replace_most_similar_chunk ───────────────────────────────────────────────
 # Cari search_text di content, replace dengan replace_text.
 # Pakai flexible_search_and_replace dari aider untuk fuzzy match.
+
 
 def replace_most_similar_chunk(content: str, search: str, replace: str) -> str | None:
     """
@@ -665,4 +675,10 @@ def replace_most_similar_chunk(content: str, search: str, replace: str) -> str |
         [content, search, replace],
         strategies=editblock_strategies,
     )
-    return result if result != content or replace == search else result if search not in content else None
+    return (
+        result
+        if result != content or replace == search
+        else result
+        if search not in content
+        else None
+    )

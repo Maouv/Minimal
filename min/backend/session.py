@@ -13,16 +13,16 @@ import config
 
 class Session:
     def __init__(self, session_id: str, model: str):
-        self.session_id  = session_id
-        self.model       = model
+        self.session_id = session_id
+        self.model = model
         self.active_task: "asyncio.Task | None" = None
-        self.mode: str = "ask"   # ask | edit-block | edit-udiff | edit-whole
+        self.mode: str = "ask"  # ask | edit-block | edit-udiff | edit-whole
         self.created_at = datetime.now(timezone.utc)
         self.context = ContextManager()
-        self.messages: list[dict] = []   # chat history (tanpa thinking)
+        self.messages: list[dict] = []  # chat history (tanpa thinking)
         self.last_edit: list | None = None  # untuk /undo
         self.last_init_draft: str | None = None
-        self.last_init_path:  str | None = None
+        self.last_init_path: str | None = None
         self._path = config.sessions_dir() / f"{session_id}.jsonl"
 
     # --- Persistence ---
@@ -35,13 +35,15 @@ class Session:
             await f.write(line)
 
     async def write_meta(self):
-        await self.save_line({
-            "type": "meta",
-            "session_id": self.session_id,
-            "created_at": self.created_at.isoformat(),
-            "model": self.model,
-            "base_url": config.base_url(),
-        })
+        await self.save_line(
+            {
+                "type": "meta",
+                "session_id": self.session_id,
+                "created_at": self.created_at.isoformat(),
+                "model": self.model,
+                "base_url": config.base_url(),
+            }
+        )
 
     async def write_message(self, role: str, content: str, usage: dict | None = None):
         record: dict[str, object] = {
@@ -54,20 +56,24 @@ class Session:
         await self.save_line(record)
 
     async def write_edit(self, file: str, diff: str, success: bool):
-        await self.save_line({
-            "type": "edit",
-            "file": file,
-            "diff": diff,
-            "success": success,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        await self.save_line(
+            {
+                "type": "edit",
+                "file": file,
+                "diff": diff,
+                "success": success,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     async def write_command(self, command: str):
-        await self.save_line({
-            "type": "command",
-            "content": command,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        await self.save_line(
+            {
+                "type": "command",
+                "content": command,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     # --- Message history ---
 
@@ -91,6 +97,7 @@ class Session:
         if not path.exists():
             # Fallback: cari di semua subdir sessions
             from config import _CONFIG_DIR
+
             for candidate in (_CONFIG_DIR / "sessions").rglob(f"{session_id}.jsonl"):
                 path = candidate
                 break
@@ -112,10 +119,12 @@ class Session:
         for line in lines[1:]:
             t = line.get("type")
             if t in ("user", "assistant"):
-                session.messages.append({
-                    "role": t,
-                    "content": line.get("content", ""),
-                })
+                session.messages.append(
+                    {
+                        "role": t,
+                        "content": line.get("content", ""),
+                    }
+                )
 
         return session
 
@@ -150,22 +159,27 @@ async def get_or_load(session_id: str) -> Session | None:
 def list_all() -> list[dict]:
     sessions_dir = config.sessions_dir()
     result = []
-    for path in sorted(sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True):
+    for path in sorted(
+        sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    ):
         session_id = path.stem
         try:
             first_line = path.read_text().split("\n")[0]
             meta = json.loads(first_line)
-            result.append({
-                "session_id": session_id,
-                "created_at": meta.get("created_at"),
-                "model": meta.get("model"),
-            })
+            result.append(
+                {
+                    "session_id": session_id,
+                    "created_at": meta.get("created_at"),
+                    "model": meta.get("model"),
+                }
+            )
         except Exception:
             continue
     return result
 
 
 # --- Helpers ---
+
 
 async def _read_jsonl_safe(path: Path) -> list[dict]:
     """Read JSONL, skip lines yang korup."""
@@ -182,4 +196,3 @@ async def _read_jsonl_safe(path: Path) -> list[dict]:
             break
 
     return lines
-

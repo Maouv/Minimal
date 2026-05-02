@@ -12,6 +12,7 @@ _CONFIG_DIR = Path.home() / ".minimal"
 _ENV_FILE = _CONFIG_DIR / ".env"
 _PROVIDERS_FILE = _CONFIG_DIR / "providers.json"
 
+
 def ensure():
     """Panggil saat startup. Load .env kalau ada, skip kalau belum — TUI handle setup."""
     if _ENV_FILE.exists():
@@ -23,18 +24,8 @@ def is_configured() -> bool:
     return bool(os.getenv("LLM_API_KEY", "").strip())
 
 
-def save_initial_config(pbase_url: str, papi_key: str, pmodel: str) -> None:
-    """Simpan config awal ke .env — dipanggil dari TUI setup flow."""
-    _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    _ENV_FILE.write_text(
-        f"LLM_BASE_URL={pbase_url}\n"
-        f"LLM_API_KEY={papi_key}\n"
-        f"LLM_MODEL={pmodel}\n"
-    )
-    load_dotenv(_ENV_FILE, override=True)
-
-
 # --- Getters ---
+
 
 def base_url() -> str:
     return os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
@@ -92,7 +83,7 @@ def all_models() -> dict[str, str]:
     result = {}
     for key, val in os.environ.items():
         if key.startswith("LLM_MODEL_") and val:
-            alias = key[len("LLM_MODEL_"):].lower()
+            alias = key[len("LLM_MODEL_") :].lower()
             result[alias] = val
     return result
 
@@ -113,6 +104,7 @@ def resolve_model(name: str) -> str:
 # --- Multi-provider ---
 # providers.json: list of { name, base_url, env_key }
 # API key disimpan di .env dengan key = env_key
+
 
 def providers_file() -> Path:
     return _PROVIDERS_FILE
@@ -161,6 +153,7 @@ def _url_to_name(url: str) -> str:
     # Ambil hostname saja
     try:
         from urllib.parse import urlparse
+
         return urlparse(url).hostname or url
     except Exception:
         return url
@@ -228,5 +221,3 @@ def switch_provider_model(provider: dict, model_id: str) -> None:
     os.environ["LLM_BASE_URL"] = provider["base_url"]
     os.environ["LLM_API_KEY"] = resolved_key
     os.environ["LLM_MODEL"] = model_id
-
-

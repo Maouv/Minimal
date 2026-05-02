@@ -7,6 +7,7 @@ from datetime import datetime
 
 # --- Config ---
 
+
 class ConfigResponse(BaseModel):
     base_url: str
     model: str
@@ -17,11 +18,8 @@ class ConfigResponse(BaseModel):
     configured: bool
 
 
-class ProviderUpdateRequest(BaseModel):
-    model: str
-
-
 # --- Session ---
+
 
 class SessionCreateRequest(BaseModel):
     model: Optional[str] = None
@@ -39,11 +37,13 @@ class SessionListResponse(BaseModel):
 
 # --- Prompt ---
 
+
 class PromptRequest(BaseModel):
     content: str
 
 
 # --- Context ---
+
 
 class ContextFile(BaseModel):
     path: str
@@ -66,4 +66,3 @@ class ContextDropRequest(BaseModel):
 class ContextListResponse(BaseModel):
     files: list[ContextFile]
     total_tokens: int
-

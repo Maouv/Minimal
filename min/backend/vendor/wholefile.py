@@ -26,9 +26,14 @@ def parse_whole_edits(content, chat_files, fence=DEFAULT_FENCE):
             else:
                 if i > 0:
                     candidate = lines[i - 1].strip()
-                    candidate = candidate.strip("*").rstrip(":").strip("`").lstrip("#").strip()
+                    candidate = (
+                        candidate.strip("*").rstrip(":").strip("`").lstrip("#").strip()
+                    )
                     if len(candidate) <= 250 and candidate:
-                        if candidate not in chat_files and Path(candidate).name in chat_files:
+                        if (
+                            candidate not in chat_files
+                            and Path(candidate).name in chat_files
+                        ):
                             candidate = Path(candidate).name
                         fname = candidate
                 if not fname:

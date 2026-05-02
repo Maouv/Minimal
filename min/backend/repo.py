@@ -14,20 +14,45 @@ class RepoContext:
 
 
 TAG_PATTERNS = [
-    ({"py", "toml", "sh", "yaml", "yml", "ini", "rb", "rs", "tf"}, r'#\s*@repo:\s*(.+)'),
-    ({"ts", "tsx", "js", "jsx", "go", "c", "cpp", "java", "cs", "kt"}, r'//\s*@repo:\s*(.+)'),
-    ({"md", "html", "xml", "vue", "svelte"}, r'<!--\s*@repo:\s*(.+?)\s*-->'),
-    ({"css", "scss", "less"}, r'/\*\s*@repo:\s*(.+?)\s*\*/'),
+    (
+        {"py", "toml", "sh", "yaml", "yml", "ini", "rb", "rs", "tf"},
+        r"#\s*@repo:\s*(.+)",
+    ),
+    (
+        {"ts", "tsx", "js", "jsx", "go", "c", "cpp", "java", "cs", "kt"},
+        r"//\s*@repo:\s*(.+)",
+    ),
+    ({"md", "html", "xml", "vue", "svelte"}, r"<!--\s*@repo:\s*(.+?)\s*-->"),
+    ({"css", "scss", "less"}, r"/\*\s*@repo:\s*(.+?)\s*\*/"),
 ]
 
 SYMBOL_RE = re.compile(
-    r'^\s*(?:export\s+)?(?:pub\s+)?(?:async\s+)?'
-    r'(?:function|class|def|fn|func|const|let|var|type|interface|struct|impl|enum)\s+(\w+)',
-    re.MULTILINE
+    r"^\s*(?:export\s+)?(?:pub\s+)?(?:async\s+)?"
+    r"(?:function|class|def|fn|func|const|let|var|type|interface|struct|impl|enum)\s+(\w+)",
+    re.MULTILINE,
 )
 
-SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv", "venv", "dist", "build", ".next", ".nuxt", "target", ".cargo", ".mypy_cache"}
-MANIFEST_FILES = {"package.json", "requirements.txt", "go.mod", "Cargo.toml", "pyproject.toml"}
+SKIP_DIRS = {
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "target",
+    ".cargo",
+    ".mypy_cache",
+}
+MANIFEST_FILES = {
+    "package.json",
+    "requirements.txt",
+    "go.mod",
+    "Cargo.toml",
+    "pyproject.toml",
+}
 
 
 def _get_tag_patterns(ext: str):
@@ -51,7 +76,9 @@ def _process_minimal_md(path: Path, root: Path, ctx: RepoContext):
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
         depth = len(path.relative_to(root).parts) - 1
-        ctx.minimal_mds.append({"path": str(path.relative_to(root)), "content": content, "depth": depth})
+        ctx.minimal_mds.append(
+            {"path": str(path.relative_to(root)), "content": content, "depth": depth}
+        )
     except Exception:
         pass
 
@@ -76,7 +103,14 @@ def _process_code_file(path: Path, root: Path, ctx: RepoContext, ext: str):
     if len(symbols) > 20:
         symbols = symbols[:20]
     if symbols:
-        ctx.symbols.append({"file": rel_path, "symbols": symbols, "has_tags": bool(tags), "depth": len(path.relative_to(root).parts)})
+        ctx.symbols.append(
+            {
+                "file": rel_path,
+                "symbols": symbols,
+                "has_tags": bool(tags),
+                "depth": len(path.relative_to(root).parts),
+            }
+        )
 
 
 def _process_manifest(path: Path, root: Path, ctx: RepoContext):
@@ -94,8 +128,12 @@ def _trim_to_budget(ctx: RepoContext, budget: int):
         if ctx.symbols:
             non_tagged = [s for s in ctx.symbols if not s.get("has_tags", False)]
             if non_tagged:
-                non_tagged_sorted = sorted(non_tagged, key=lambda x: x.get("depth", 0), reverse=True)
-                ctx.symbols = [s for s in ctx.symbols if s in non_tagged_sorted[1:]] + [s for s in ctx.symbols if s.get("has_tags", False)]
+                non_tagged_sorted = sorted(
+                    non_tagged, key=lambda x: x.get("depth", 0), reverse=True
+                )
+                ctx.symbols = [s for s in ctx.symbols if s in non_tagged_sorted[1:]] + [
+                    s for s in ctx.symbols if s.get("has_tags", False)
+                ]
                 ctx.token_estimate = _count_tokens(_serialize_context(ctx))
                 continue
 
@@ -139,10 +177,35 @@ def scan(root: Path, token_budget: int = 6000) -> RepoContext:
 
         if name == "MINIMAL.md":
             _process_minimal_md(path, root, ctx)
-        elif ext in {"py", "toml", "sh", "yaml", "yml", "ini", "rb", "rs", "tf",
-                     "ts", "tsx", "js", "jsx", "go", "c", "cpp", "java", "cs", "kt",
-                     "md", "html", "xml", "vue", "svelte",
-                     "css", "scss", "less"}:
+        elif ext in {
+            "py",
+            "toml",
+            "sh",
+            "yaml",
+            "yml",
+            "ini",
+            "rb",
+            "rs",
+            "tf",
+            "ts",
+            "tsx",
+            "js",
+            "jsx",
+            "go",
+            "c",
+            "cpp",
+            "java",
+            "cs",
+            "kt",
+            "md",
+            "html",
+            "xml",
+            "vue",
+            "svelte",
+            "css",
+            "scss",
+            "less",
+        }:
             _process_code_file(path, root, ctx, ext)
         elif name in MANIFEST_FILES:
             _process_manifest(path, root, ctx)

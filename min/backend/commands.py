@@ -14,12 +14,21 @@ EDIT_COMMANDS: dict[str, EditMode] = {
 }
 
 SLASH_COMMANDS = [
-    "/add", "/add -r", "/drop",
-    "/edit-block", "/edit-udiff", "/edit-whole",
+    "/add",
+    "/add -r",
+    "/drop",
+    "/edit-block",
+    "/edit-udiff",
+    "/edit-whole",
     "/ask",
-    "/clear", "/reset",
-    "/undo", "/diff", "/commit",
-    "/run", "/tokens", "/model",
+    "/clear",
+    "/reset",
+    "/undo",
+    "/diff",
+    "/commit",
+    "/run",
+    "/tokens",
+    "/model",
     "/help",
     "/init",
     "/exit",
@@ -29,12 +38,21 @@ SLASH_COMMANDS = [
 @dataclass
 class Command:
     kind: Literal[
-        "add", "drop",
-        "edit", "ask",
-        "clear", "reset",
-        "undo", "diff", "commit",
-        "run", "tokens", "model",
-        "help", "init", "exit",
+        "add",
+        "drop",
+        "edit",
+        "ask",
+        "clear",
+        "reset",
+        "undo",
+        "diff",
+        "commit",
+        "run",
+        "tokens",
+        "model",
+        "help",
+        "init",
+        "exit",
         "prompt",  # bukan slash command — prompt biasa ke AI
     ]
     args: str = ""
