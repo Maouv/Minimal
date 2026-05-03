@@ -9,14 +9,30 @@ Dokumen ini mencakup semua modul, komponen, API endpoint, SSE events, dan catata
 ```
 min/
 ├── backend/                 Python + FastAPI, port 4096
-│   ├── main.py              Entry point, semua HTTP endpoints
+│   ├── main.py              Slim entry point: app init, lifespan, router mount (<30 baris)
+│   ├── api/                 HTTP handlers, split per domain
+│   │   ├── __init__.py      Expose all_routers list
+│   │   ├── health.py        GET /health, POST /repo/map
+│   │   ├── providers.py     GET /config, /providers, POST /providers/*
+│   │   ├── project.py       GET /project/current, /files, /dirs, /entries
+│   │   ├── sessions.py      POST/GET/PATCH /session, /session/{id}/abort
+│   │   ├── context.py       POST /context/add, /context/drop, GET /context
+│   │   └── prompt.py        POST /session/{id}/init — SSE stream + _handle_prompt
+│   ├── prompts/             System prompt builder (Jinja2)
+│   │   ├── __init__.py      Public API: init_system(), ask_system_prompt(), edit_system_prompt()
+│   │   ├── loader.py        load_prompt(name, **kwargs) via Jinja2 StrictUndefined
+│   │   ├── init.md          Prompt untuk /init
+│   │   ├── ask.md           Ask mode system prompt
+│   │   ├── edit_base.md     Shared preamble untuk semua edit mode
+│   │   ├── edit_block.md    SEARCH/REPLACE instructions
+│   │   ├── edit_udiff.md    Unified diff instructions
+│   │   └── edit_whole.md    Whole file rewrite
 │   ├── config.py            .env loader, provider management
 │   ├── session.py           Session lifecycle + JSONL persistence
 │   ├── context.py           Context file manager
 │   ├── llm.py               OpenAI-compatible streaming wrapper
 │   ├── coder.py             File edit engine (block/udiff/whole)
 │   ├── commands.py          Slash command parser
-│   ├── prompts.py           System prompt builder
 │   ├── schemas.py           Pydantic request/response models
 │   ├── probe_models.py      Probe /v1/models dari provider
 │   └── vendor/
@@ -44,7 +60,12 @@ min/
 
 ## Backend
 
-### `main.py` — HTTP Endpoints
+### `main.py` — Entry Point (slim)
+
+29 baris. Hanya: app init, lifespan, CORS middleware, mount `all_routers` dari `api/`, uvicorn run.
+Semua endpoint hidup di `api/` — lihat masing-masing modul di bawah.
+
+### `api/` — HTTP Endpoints
 
 Semua endpoint di `localhost:4096`. Backend pakai FastAPI dengan CORS allow-all.
 
