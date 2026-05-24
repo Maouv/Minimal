@@ -9,6 +9,10 @@ def init_system() -> str:
     return load_prompt("init")
 
 
+def think_system_prompt() -> str:
+    return load_prompt("think")
+
+
 def ask_system_prompt(files: dict[str, str]) -> str:
     file_list = "\n".join(f"  - {p}" for p in files) if files else "  (none)"
     return load_prompt("ask", file_list=file_list)

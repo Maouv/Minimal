@@ -24,6 +24,7 @@ export const MODE_COLOR: Record<string, string> = {
 	"edit-block": C.orange,
 	"edit-udiff": C.purple,
 	"edit-whole": C.pink,
+	think: C.green,
 };
 
 const r = (hex: string) => RGBA.fromHex(hex);

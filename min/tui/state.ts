@@ -1,7 +1,7 @@
 // state.ts — solid-js store: single source of truth
 import { createStore } from "solid-js/store";
 
-export type Mode = "ask" | "edit-block" | "edit-udiff" | "edit-whole";
+export type Mode = "ask" | "edit-block" | "edit-udiff" | "edit-whole" | "think";
 export type MessageRole = "user" | "assistant" | "system";
 
 export interface ContextFile {
@@ -36,6 +36,15 @@ export interface AppState {
 	totalTokens: number;
 	inputTokens: number;
 	outputTokens: number;
+	// ── Thinking indicator state ──────────────────────────────────────────────
+	// Updated externally by stream.ts ticker
+	thinkingFrame: number;        // 0-3, cycles for ✦ · · · animation
+	liveOutputTokens: number;     // estimated output tokens so far (chars ÷ 4)
+	lastInputTokens: number;      // input_tokens from last done event
+	// ── Think mode state ─────────────────────────────────────────────────────
+	thinkActiveTool: string | null;  // tool name currently executing, null if none
+	thinkUsedTokens: number;         // accumulated output tokens this think session
+	// ─────────────────────────────────────────────────────────────────────────
 	error: string | null;
 	showModelPicker: "switch" | "add" | false;
 }
@@ -50,6 +59,11 @@ export const [state, setState] = createStore<AppState>({
 	totalTokens: 0,
 	inputTokens: 0,
 	outputTokens: 0,
+	thinkingFrame: 0,
+	liveOutputTokens: 0,
+	lastInputTokens: 0,
+	thinkActiveTool: null,
+	thinkUsedTokens: 0,
 	error: null,
 	showModelPicker: false,
 });

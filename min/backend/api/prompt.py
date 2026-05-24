@@ -16,6 +16,7 @@ import coder
 import llm
 import repo as repo_module
 import prompts
+import think as think_engine
 from context import _estimate_tokens
 from prompts import ask_system_prompt, edit_system_prompt
 from schemas import PromptRequest
@@ -205,6 +206,44 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         yield sse("mode", {"mode": "ask"})
         return
 
+    if command.kind == "think":
+        # Switch to think mode permanently (stays until /ask or /edit-*)
+        s.mode = "think"
+        yield sse("mode", {"mode": "think"})
+
+        prompt_text = command.args
+        if not prompt_text:
+            # No inline prompt — just switch mode, user types next message
+            return
+
+        budget = (
+            think_engine.DEEP_BUDGET if command.think_deep
+            else think_engine.DEFAULT_BUDGET
+        )
+        async for result in think_engine.run_think_loop(s, prompt_text, budget):
+            if result.kind == "token":
+                yield sse("token", {"content": result.payload["content"]})
+            elif result.kind == "thinking":
+                yield sse("thinking", {"content": result.payload["content"]})
+            elif result.kind == "tool_start":
+                yield sse("think_tool", {
+                    "tool": result.payload["tool"],
+                    "args": result.payload["args"],
+                })
+            elif result.kind == "tool_result":
+                yield sse("think_tool_done", {
+                    "tool": result.payload["tool"],
+                    "error": result.payload.get("error"),
+                })
+            elif result.kind == "done":
+                yield sse("done", {
+                    "input_tokens": result.payload["input_tokens"],
+                    "output_tokens": result.payload["output_tokens"],
+                })
+            elif result.kind == "error":
+                yield sse("error", {"message": result.payload.get("message", "unknown error")})
+        return
+
     if command.kind == "help":
         yield sse("text", {"content": cmd_parser.HELP_TEXT})
         return
@@ -271,8 +310,34 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
             return
     else:
         effective_mode = None
-        if s.mode != "ask" and command.kind == "prompt":
-            # Mode permanen aktif — pakai mode itu
+        if s.mode == "think" and command.kind == "prompt":
+            # In think mode — plain prompt → run investigation
+            budget = think_engine.DEFAULT_BUDGET
+            async for result in think_engine.run_think_loop(s, raw_input, budget):
+                if result.kind == "token":
+                    yield sse("token", {"content": result.payload["content"]})
+                elif result.kind == "thinking":
+                    yield sse("thinking", {"content": result.payload["content"]})
+                elif result.kind == "tool_start":
+                    yield sse("think_tool", {
+                        "tool": result.payload["tool"],
+                        "args": result.payload["args"],
+                    })
+                elif result.kind == "tool_result":
+                    yield sse("think_tool_done", {
+                        "tool": result.payload["tool"],
+                        "error": result.payload.get("error"),
+                    })
+                elif result.kind == "done":
+                    yield sse("done", {
+                        "input_tokens": result.payload["input_tokens"],
+                        "output_tokens": result.payload["output_tokens"],
+                    })
+                elif result.kind == "error":
+                    yield sse("error", {"message": result.payload.get("message", "unknown")})
+            return
+        elif s.mode != "ask" and command.kind == "prompt":
+            # Edit mode permanen aktif — pakai mode itu
             effective_mode = s.mode.replace("edit-", "")
             is_edit = True
 
@@ -382,6 +447,13 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
                     },
                 )
 
+            # Follow-up turn — AI acknowledge hasil edit
+            if applied_files or failed_files:
+                async for chunk in _stream_edit_followup(
+                    s, applied_files, failed_files
+                ):
+                    yield chunk
+
         yield sse(
             "done",
             {
@@ -394,6 +466,50 @@ async def _handle_prompt(s, raw_input: str) -> AsyncIterator[str]:
         yield sse("error", {"message": str(e)})
     finally:
         heartbeat_task.cancel()
+
+
+async def _stream_edit_followup(
+    s, applied_files: list[str], failed_files: list[str]
+) -> AsyncIterator[str]:
+    """
+    Kirim follow-up turn ke AI setelah edits applied.
+    AI harus acknowledge perubahan — fix masalah 'AI diam setelah edit'.
+    Cost: ~100-200 extra output tokens, worth it untuk UX.
+    """
+    lines = ["[System] Edit results:"]
+    for f in applied_files:
+        lines.append(f"- {f.split('/')[-1]}: ✓ applied")
+    for f in failed_files:
+        lines.append(f"- {f.split('/')[-1]}: ✗ failed (SEARCH block tidak cocok)")
+    lines.append("\nBriefly confirm what you changed and note any failures.")
+
+    followup_messages = s.get_messages() + [
+        {"role": "user", "content": "\n".join(lines)}
+    ]
+
+    followup_response = ""
+    followup_usage = None
+
+    async for token, u, thinking in llm.stream_chat(
+        messages=followup_messages,
+        model=s.model,
+        system_prompt="",
+    ):
+        if thinking:
+            yield sse("thinking", {"content": thinking})
+        if token:
+            followup_response += token
+            yield sse("token", {"content": token})
+        elif u:
+            followup_usage = u
+
+    if followup_response:
+        clean = llm.clean_for_history(followup_response)
+        s.add_message("assistant", clean)
+        await s.write_message("assistant", clean, {
+            "input_tokens": followup_usage.input_tokens if followup_usage else 0,
+            "output_tokens": followup_usage.output_tokens if followup_usage else 0,
+        })
 
 
 async def _noop_cancellable():

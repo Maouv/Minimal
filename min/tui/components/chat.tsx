@@ -3,11 +3,29 @@
 // User msg: input-box style (glyph ✦ + text)
 // AI msg: plain text body + optional thinking + code/diff blocks
 import { createMemo, For, Show } from "solid-js";
-import { type Message, state } from "../state.ts";
+import { type EditResult, type Message, state } from "../state.ts";
 import { C, getMonokaiStyle } from "../theme.ts";
+import { ThinkingIndicator } from "./thinking.tsx";
 
 // ── Empty state ───────────────────────────────────────────────────────────────
-// Center: logo ✦ besar + "minimal", lalu 2 history preview box
+function EmptyPromptBox(props: { text: string; dim?: boolean }) {
+	return (
+		<box
+			width="100%"
+			flexDirection="row"
+			backgroundColor={C.bg2}
+			paddingLeft={2}
+			paddingRight={2}
+			paddingTop={1}
+			paddingBottom={1}
+			marginBottom={1}
+		>
+			<text fg={C.blue} marginRight={1}>✦</text>
+			<text fg={props.dim ? C.gray : C.white} flexWrap="wrap">{props.text}</text>
+		</box>
+	);
+}
+
 function EmptyState() {
 	return (
 		<box
@@ -19,47 +37,13 @@ function EmptyState() {
 			backgroundColor={C.bg}
 			marginTop={3}
 		>
-			{/* Logo + brand */}
 			<box flexDirection="row" alignItems="center" marginBottom={3}>
 				<text fg={C.blue}>{"✦  "}</text>
 				<text fg={C.white}>Minimal</text>
 			</box>
-
-			{/* History preview items — sama style dengan user message */}
 			<box flexDirection="column" width={50}>
-				<box
-					width="100%"
-					flexDirection="row"
-					backgroundColor={C.bg2}
-					paddingLeft={2}
-					paddingRight={2}
-					paddingTop={1}
-					paddingBottom={1}
-					marginBottom={1}
-				>
-					<text fg={C.blue} marginRight={1}>
-						✦
-					</text>
-					<text fg={C.white} flexWrap="wrap">
-						Can you fix null pointer on context.py line 42?
-					</text>
-				</box>
-				<box
-					width="100%"
-					flexDirection="row"
-					backgroundColor={C.bg2}
-					paddingLeft={2}
-					paddingRight={2}
-					paddingTop={1}
-					paddingBottom={1}
-				>
-					<text fg={C.blue} marginRight={1}>
-						✦
-					</text>
-					<text fg={C.gray} flexWrap="wrap">
-						/edit-block fix null pointer in context.py
-					</text>
-				</box>
+				<EmptyPromptBox text="Can you fix null pointer on context.py line 42?" />
+				<EmptyPromptBox text="/edit-block fix null pointer in context.py" dim />
 			</box>
 		</box>
 	);
@@ -134,122 +118,59 @@ function stripEditBlocks(content: string): string {
 	return out.trim();
 }
 
-// ── Diff renderer — claude code style: line numbers + truncate ────────────────
-// Tidak ada scrollbar. Teks panjang truncate dengan … di ujung.
-// Line number di kiri abu-abu, sign +/- di tengah, konten di kanan.
-function DiffBlock(props: { diff: string; file: string }) {
-	const parsed = createMemo(() => {
-		const lines: Array<{
-			type: "added" | "removed" | "context";
-			lineNo: number;
-			content: string;
-		}> = [];
-		let lineNo = 0;
-		for (const raw of props.diff.split("\n")) {
-			if (raw.startsWith("---") || raw.startsWith("+++")) continue;
-			if (raw.startsWith("@@")) {
-				// Extract starting line number dari @@ -x,y +a,b @@
-				const m = raw.match(/@@ [+-]\d+(?:,\d+)? [+-](\d+)/);
-				if (m) lineNo = parseInt(m[1], 10) - 1;
-				continue;
-			}
-			if (raw === "") continue;
-			const sign = raw[0];
-			const content = raw.slice(1);
-			if (sign === "+") {
-				lineNo++;
-				lines.push({ type: "added", lineNo, content });
-			} else if (sign === "-") {
-				lines.push({ type: "removed", lineNo: 0, content });
-			} else {
-				lineNo++;
-				lines.push({ type: "context", lineNo, content });
-			}
-		}
-		return lines;
-	});
+// ── Diff renderer ─────────────────────────────────────────────────────────────
 
+type DiffLineData = { type: "added" | "removed" | "context"; lineNo: number; content: string };
+
+function parseDiff(raw: string): DiffLineData[] {
+	const lines: DiffLineData[] = [];
+	let lineNo = 0;
+	for (const line of raw.split("\n")) {
+		if (line.startsWith("---") || line.startsWith("+++")) continue;
+		if (line.startsWith("@@")) {
+			const m = line.match(/@@ [+-]\d+(?:,\d+)? [+-](\d+)/);
+			if (m) lineNo = parseInt(m[1], 10) - 1;
+			continue;
+		}
+		if (line === "") continue;
+		const sign = line[0];
+		const content = line.slice(1);
+		if (sign === "+") { lineNo++; lines.push({ type: "added", lineNo, content }); }
+		else if (sign === "-") { lines.push({ type: "removed", lineNo: 0, content }); }
+		else { lineNo++; lines.push({ type: "context", lineNo, content }); }
+	}
+	return lines;
+}
+
+function DiffLine(props: { line: DiffLineData }) {
+	const { type, lineNo, content } = props.line;
+	const bg = type === "added" ? "#0d1a00" : type === "removed" ? "#1a0009" : "transparent";
+	const signFg = type === "added" ? C.gdim : type === "removed" ? C.pink : C.gray2;
+	const textFg = type === "added" ? C.green : type === "removed" ? C.pink : C.gray;
+	const sign = type === "added" ? "+" : type === "removed" ? "-" : " ";
 	return (
-		<box width="100%" flexDirection="column">
-			<For each={parsed()}>
-				{(line) => (
-					<box
-						width="100%"
-						flexDirection="row"
-						backgroundColor={
-							line.type === "added"
-								? "#0d1a00"
-								: line.type === "removed"
-									? "#1a0009"
-									: "transparent"
-						}
-					>
-						{/* line number */}
-						<text fg={C.gray2} width={4} marginRight={1}>
-							{line.type === "removed" ? "" : String(line.lineNo)}
-						</text>
-						{/* sign */}
-						<text
-							fg={
-								line.type === "added"
-									? C.gdim
-									: line.type === "removed"
-										? C.pink
-										: C.gray2
-							}
-							width={1}
-							marginRight={1}
-						>
-							{line.type === "added"
-								? "+"
-								: line.type === "removed"
-									? "-"
-									: " "}
-						</text>
-						{/* content — truncate kalau terlalu panjang */}
-						<text
-							fg={
-								line.type === "added"
-									? C.green
-									: line.type === "removed"
-										? C.pink
-										: C.gray
-							}
-							flexGrow={1}
-							truncate
-						>
-							{line.content}
-						</text>
-					</box>
-				)}
-			</For>
+		<box width="100%" flexDirection="row" backgroundColor={bg}>
+			<text fg={C.gray2} width={4} marginRight={1}>{type === "removed" ? "" : String(lineNo)}</text>
+			<text fg={signFg} width={1} marginRight={1}>{sign}</text>
+			<text fg={textFg} flexGrow={1} truncate>{content}</text>
 		</box>
 	);
 }
 
-// ── AI message ────────────────────────────────────────────────────────────────
-function AiMsg(props: { msg: Message }) {
+function DiffBlock(props: { diff: string; file: string }) {
+	const parsed = createMemo(() => parseDiff(props.diff));
+	return (
+		<box width="100%" flexDirection="column">
+			<For each={parsed()}>{(line) => <DiffLine line={line} />}</For>
+		</box>
+	);
+}
+
+// StreamingMsg: reactive, re-renders per token flush.
+// Only mounted for the one message actively being streamed.
+function StreamingMsg(props: { msg: Message }) {
 	const syntaxStyle = getMonokaiStyle();
-
-	// Saat streaming: strip tiap update.
-	// Setelah done: pakai displayContent yang sudah di-compute sekali di state level.
-	const isDone = createMemo(() => props.msg.done);
-	const content = createMemo(() => {
-		if (isDone() && props.msg.displayContent !== undefined) {
-			return props.msg.displayContent;
-		}
-		return stripEditBlocks(props.msg.content);
-	});
-	// Frozen edits snapshot — setelah done tidak perlu re-subscribe
-	let _frozenEdits: typeof props.msg.edits;
-	const edits = createMemo(() => {
-		if (isDone()) {
-			if (_frozenEdits === undefined) _frozenEdits = props.msg.edits;
-			return _frozenEdits;
-		}
-		return props.msg.edits;
-	});
-
+	const content = createMemo(() => stripEditBlocks(props.msg.content));
 	return (
 		<box
 			width="100%"
@@ -260,81 +181,118 @@ function AiMsg(props: { msg: Message }) {
 			paddingBottom={1}
 			backgroundColor={C.bg}
 		>
-			{/* Content — markdown dengan syntax highlight */}
 			<markdown
 				content={content()}
 				syntaxStyle={syntaxStyle}
 				conceal
 				fg={C.white}
-				streaming={!isDone()}
+				streaming={true}
 				width="100%"
 			/>
+		</box>
+	);
+}
 
-			{/* Diff blocks — hanya render setelah done */}
-			{/* biome-ignore lint/style/noNonNullAssertion: guarded by Show when={edits()} */}
-			<Show when={isDone() && edits() && edits()!.length > 0}>
-				{/* biome-ignore lint/style/noNonNullAssertion: guarded by Show when={edits()} */}
-				<For each={edits()!}>
-					{(edit) => {
-						const added = (edit.diff.match(/^\+[^+]/gm) ?? []).length;
-						const removed = (edit.diff.match(/^-[^-]/gm) ?? []).length;
-						return (
-							<box
-								width="100%"
-								flexDirection="column"
-								marginTop={1}
-								marginLeft={1}
-								marginRight={1}
-								border
-								borderColor={C.border}
-								overflow="hidden"
-							>
-								{/* diff header */}
-								<box
-									width="100%"
-									flexDirection="row"
-									height={1}
-									paddingLeft={1}
-									paddingRight={1}
-									backgroundColor={C.bg2}
-									overflow="hidden"
-								>
-									<text fg={C.cyan} flexShrink={1} flexGrow={0}>
-										{edit.file.split("/").pop()}
-									</text>
-									<text fg={C.gray2}>{`  +${added} -${removed}`}</text>
-									<box flexGrow={1} />
-									<text fg={edit.success ? C.green : C.pink} flexShrink={0}>
-										{edit.success ? "applied" : (edit.error ?? "failed")}
-									</text>
-								</box>
-								{/* diff body — horizontal scroll + syntax highlight */}
-								<Show when={edit.diff}>
-									<DiffBlock diff={edit.diff} file={edit.file} />
-								</Show>
-							</box>
-						);
-					}}
-				</For>
+function DiffHeader(props: { edit: EditResult }) {
+	const added = (props.edit.diff.match(/^\+[^+]/gm) ?? []).length;
+	const removed = (props.edit.diff.match(/^-[^-]/gm) ?? []).length;
+	return (
+		<box width="100%" flexDirection="row" height={1} paddingLeft={1} paddingRight={1}
+			backgroundColor={C.bg2} overflow="hidden"
+		>
+			<text fg={C.cyan} flexShrink={1} flexGrow={0}>{props.edit.file.split("/").pop()}</text>
+			<text fg={C.gray2}>{`  +${added} -${removed}`}</text>
+			<box flexGrow={1} />
+			<text fg={props.edit.success ? C.green : C.pink} flexShrink={0}>
+				{props.edit.success ? "applied" : (props.edit.error ?? "failed")}
+			</text>
+		</box>
+	);
+}
+
+function DiffEntry(props: { edit: EditResult }) {
+	return (
+		<box width="100%" flexDirection="column" marginTop={1} marginLeft={1}
+			marginRight={1} border borderColor={C.border} overflow="hidden"
+		>
+			<DiffHeader edit={props.edit} />
+			<Show when={props.edit.diff}>
+				<DiffBlock diff={props.edit.diff} file={props.edit.file} />
 			</Show>
 		</box>
 	);
 }
 
+function FrozenMsgDiffs(props: { edits?: Message["edits"] }) {
+	return (
+		<Show when={props.edits && props.edits.length > 0}>
+			{/* biome-ignore lint/style/noNonNullAssertion: guarded by Show */}
+			<For each={props.edits!}>{(edit) => <DiffEntry edit={edit} />}</For>
+		</Show>
+	);
+}
+
+function FrozenMsg(props: { content: string; edits?: Message["edits"] }) {
+	const syntaxStyle = getMonokaiStyle();
+	return (
+		<box width="100%" flexDirection="column" paddingLeft={3} paddingRight={3}
+			paddingTop={1} paddingBottom={1} backgroundColor={C.bg}
+		>
+			<markdown content={props.content} syntaxStyle={syntaxStyle}
+				conceal fg={C.white} streaming={false} width="100%"
+			/>
+			<FrozenMsgDiffs edits={props.edits} />
+		</box>
+	);
+}
+
+// Dispatch: frozen vs streaming. streaming index is always the last assistant msg.
+function AiMsg(props: { msg: Message; isStreaming: boolean }) {
+	if (!props.isStreaming && props.msg.done) {
+		const content = props.msg.displayContent ?? stripEditBlocks(props.msg.content);
+		return <FrozenMsg content={content} edits={props.msg.edits} />;
+	}
+	return <StreamingMsg msg={props.msg} />;
+}
+
 // ── Chat view ─────────────────────────────────────────────────────────────────
 const MESSAGE_CAP = 50; // max message di DOM sekaligus
+
+function MessageRow(props: { msg: Message; isStreaming: boolean }) {
+	if (props.msg.role === "user") return <UserMsg content={props.msg.content} />;
+	if (props.msg.role === "system") return <SystemMsg content={props.msg.content} />;
+	return <AiMsg msg={props.msg} isStreaming={props.isStreaming} />;
+}
 
 export function ChatView() {
 	const hasMessages = createMemo(() => state.messages.length > 0);
 
-	// Hanya render MESSAGE_CAP message terakhir.
-	// Semua message tetap ada di state (tidak hilang), tapi
-	// yang lama tidak di-mount ke DOM → tidak ada layout cost.
 	const visibleMessages = createMemo(() => {
 		const msgs = state.messages;
 		if (msgs.length <= MESSAGE_CAP) return msgs;
 		return msgs.slice(msgs.length - MESSAGE_CAP);
 	});
+
+	const streamingIdx = createMemo(() => {
+		if (!state.streaming) return -1;
+		const msgs = state.messages;
+		for (let i = msgs.length - 1; i >= 0; i--) {
+			if (msgs[i].role === "assistant" && !msgs[i].done) return i;
+		}
+		return -1;
+	});
+
+	const showThinkingIndicator = createMemo(() => {
+		if (!state.streaming) return false;
+		const msgs = state.messages;
+		if (msgs.length === 0) return true;
+		const last = msgs[msgs.length - 1];
+		return last.role !== "assistant" || last.content === "";
+	});
+
+	const offset = createMemo(
+		() => state.messages.length - visibleMessages().length,
+	);
 
 	return (
 		<scrollbox
@@ -343,34 +301,19 @@ export function ChatView() {
 			stickyScroll
 			stickyStart="bottom"
 			backgroundColor={C.bg}
-			verticalScrollbarOptions={{
-				trackOptions: {
-					foregroundColor: C.bg,
-					backgroundColor: C.bg,
-				},
-			}}
+			verticalScrollbarOptions={{ trackOptions: { foregroundColor: C.bg, backgroundColor: C.bg } }}
 		>
 			<box width="100%" flexDirection="column">
-				<Show when={!hasMessages()}>
-					<EmptyState />
-				</Show>
+				<Show when={!hasMessages()}><EmptyState /></Show>
 				<For each={visibleMessages()}>
-					{(msg) => (
-						<Show
-							when={msg.role === "user"}
-							fallback={
-								<Show
-									when={msg.role === "system"}
-									fallback={<AiMsg msg={msg} />}
-								>
-									<SystemMsg content={msg.content} />
-								</Show>
-							}
-						>
-							<UserMsg content={msg.content} />
-						</Show>
+					{(msg, i) => (
+						<MessageRow
+							msg={msg}
+							isStreaming={offset() + i() === streamingIdx()}
+						/>
 					)}
 				</For>
+				<Show when={showThinkingIndicator()}><ThinkingIndicator /></Show>
 			</box>
 		</scrollbox>
 	);
