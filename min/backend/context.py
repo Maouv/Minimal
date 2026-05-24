@@ -110,6 +110,32 @@ class ContextManager:
             return False
 
 
+_TIKTOKEN_ENC = None  # None = not tried, encoder object = ready, False = unavailable
+
+
+def _get_encoder():
+    """
+    Lazy-load tiktoken encoder. Return None kalau tidak tersedia.
+    Cached setelah first call — tidak re-import setiap panggilan.
+    """
+    global _TIKTOKEN_ENC
+    if _TIKTOKEN_ENC is not None:
+        return _TIKTOKEN_ENC  # already resolved (encoder or False)
+    try:
+        import tiktoken  # noqa: PLC0415
+        _TIKTOKEN_ENC = tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        _TIKTOKEN_ENC = False  # type: ignore[assignment]
+    return _TIKTOKEN_ENC or None
+
+
 def _estimate_tokens(text: str) -> int:
-    """Estimasi token count. ~4 chars per token (rough)."""
-    return len(text) // 4
+    """
+    Hitung token count.
+    Prioritas: tiktoken cl100k_base (±10% akurat).
+    Fallback ke len÷3 kalau tiktoken tidak tersedia.
+    """
+    enc = _get_encoder()
+    if enc is not None:
+        return len(enc.encode(text))
+    return len(text) // 3

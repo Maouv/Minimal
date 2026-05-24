@@ -18,7 +18,7 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const HEARTBEAT_TIMEOUT_MS = 30_000; // 30s tanpa ping → anggap mati
-const TOKEN_FLUSH_MS = 32; // ~30 FPS — flush token buffer ke state
+const TOKEN_FLUSH_MS = 80;           // ~12 FPS — cukup untuk text stream, kurangi CPU
 
 // ── Event payloads ────────────────────────────────────────────────────────────
 // Sesuai backend main.py yield sse(...)
@@ -74,6 +74,14 @@ interface AppliedSummaryEvent {
 	applied: string[];
 	failed: string[];
 }
+interface ThinkToolEvent {
+	tool: string;
+	args: Record<string, unknown>;
+}
+interface ThinkToolDoneEvent {
+	tool: string;
+	error?: string;
+}
 
 // ── Main consumer ─────────────────────────────────────────────────────────────
 
@@ -91,6 +99,24 @@ export async function consumeStream(response: Response): Promise<void> {
 	let tokenBuffer = "";
 	let thinkingBuffer = "";
 	let flushTimer: ReturnType<typeof setTimeout> | null = null;
+	let frameTimer: ReturnType<typeof setInterval> | null = null;
+	let liveCharCount = 0;
+
+	function startFrameTicker() {
+		if (frameTimer !== null) return;
+		frameTimer = setInterval(() => {
+			setState("thinkingFrame", (f) => (f + 1) % 4);
+		}, 180);
+	}
+
+	function stopFrameTicker() {
+		if (frameTimer !== null) {
+			clearInterval(frameTimer);
+			frameTimer = null;
+		}
+		setState("thinkingFrame", 0);
+		setState("liveOutputTokens", 0);
+	}
 
 	function flushTokens() {
 		flushTimer = null;
@@ -140,6 +166,8 @@ export async function consumeStream(response: Response): Promise<void> {
 			assistantIdx = pushMessage("assistant");
 			setState("streaming", true);
 			setState("error", null);
+			setState("liveOutputTokens", 0);
+			startFrameTicker();
 		}
 	}
 
@@ -161,6 +189,8 @@ export async function consumeStream(response: Response): Promise<void> {
 				const e = data as unknown as TokenEvent;
 				ensureAssistantMessage();
 				tokenBuffer += e.content;
+				liveCharCount += e.content.length;
+				setState("liveOutputTokens", Math.floor(liveCharCount / 4));
 				scheduleFlush();
 				resetHeartbeat();
 				break;
@@ -207,6 +237,9 @@ export async function consumeStream(response: Response): Promise<void> {
 			case "done": {
 				const e = data as unknown as DoneEvent;
 				flushImmediate();
+				stopFrameTicker();
+				liveCharCount = 0;
+				setState("thinkActiveTool", null);
 				if (assistantIdx !== -1) {
 					const idx = assistantIdx;
 					const edits = pendingEdits.length ? [...pendingEdits] : undefined;
@@ -231,6 +264,7 @@ export async function consumeStream(response: Response): Promise<void> {
 				setState("streaming", false);
 				setState("inputTokens", state.inputTokens + (e.input_tokens ?? 0));
 				setState("outputTokens", state.outputTokens + (e.output_tokens ?? 0));
+				setState("lastInputTokens", e.input_tokens ?? 0);
 				assistantIdx = -1;
 				pendingEdits.length = 0;
 				stopHeartbeat();
@@ -240,6 +274,9 @@ export async function consumeStream(response: Response): Promise<void> {
 			case "error": {
 				const e = data as unknown as ErrorEvent;
 				flushImmediate();
+				stopFrameTicker();
+				liveCharCount = 0;
+				setState("thinkActiveTool", null);
 				setState("error", e.message);
 				setState("streaming", false);
 				if (assistantIdx !== -1) {
@@ -330,6 +367,19 @@ export async function consumeStream(response: Response): Promise<void> {
 				finalizeMessage(idx);
 				break;
 			}
+
+			case "think_tool": {
+				const e = data as unknown as ThinkToolEvent;
+				setState("thinkActiveTool", e.tool);
+				resetHeartbeat();
+				break;
+			}
+
+			case "think_tool_done": {
+				setState("thinkActiveTool", null);
+				resetHeartbeat();
+				break;
+			}
 		}
 	}
 
@@ -365,6 +415,7 @@ export async function consumeStream(response: Response): Promise<void> {
 		}
 	} finally {
 		flushImmediate();
+		stopFrameTicker();
 		stopHeartbeat();
 		reader.releaseLock();
 		setState("streaming", false);

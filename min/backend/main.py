@@ -1,4 +1,6 @@
 # main.py — app init, lifespan, router mount, uvicorn run
+# Startup order: /health responds instantly, heavy imports (openai etc.)
+# happen lazily inside route handlers, not at module level.
 
 from contextlib import asynccontextmanager
 
@@ -12,6 +14,7 @@ from api import all_routers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # config.ensure() only loads .env — lightweight, no heavy imports
     config.ensure()
     yield
 

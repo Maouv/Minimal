@@ -136,19 +136,20 @@ def _apply_editblock(response: str, files: dict[str, str]) -> list[EditResult]:
                         error=f"Could not find match for SEARCH block in {fname}",
                     )
                 )
-                return results
+                break  # skip remaining blocks for THIS file, continue to next file
             content = new_content
-
-        diff = make_diff(original_content, content, fname)
-        results.append(
-            EditResult(
-                file=matched_path,
-                original=original_content,
-                updated=content,
-                diff=diff,
-                success=True,
+        else:
+            # all blocks for this file succeeded
+            diff = make_diff(original_content, content, fname)
+            results.append(
+                EditResult(
+                    file=matched_path,
+                    original=original_content,
+                    updated=content,
+                    diff=diff,
+                    success=True,
+                )
             )
-        )
 
     return results
 

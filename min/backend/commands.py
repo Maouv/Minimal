@@ -21,6 +21,8 @@ SLASH_COMMANDS = [
     "/edit-udiff",
     "/edit-whole",
     "/ask",
+    "/think",
+    "/think --deep",
     "/clear",
     "/reset",
     "/undo",
@@ -42,6 +44,7 @@ class Command:
         "drop",
         "edit",
         "ask",
+        "think",
         "clear",
         "reset",
         "undo",
@@ -58,6 +61,7 @@ class Command:
     args: str = ""
     edit_mode: EditMode | None = None
     readonly: bool = False
+    think_deep: bool = False  # True kalau /think --deep
 
 
 def parse(raw: str) -> Command:
@@ -82,6 +86,14 @@ def parse(raw: str) -> Command:
     # ask — kembali ke mode normal
     if cmd == "/ask":
         return Command(kind="ask")
+
+    # think — agentic investigation
+    if cmd == "/think":
+        deep = False
+        if args.startswith("--deep"):
+            deep = True
+            args = args[6:].strip()
+        return Command(kind="think", args=args, think_deep=deep)
 
     # context commands
     if cmd == "/add":
@@ -141,6 +153,8 @@ Commands:
   /edit-udiff [prompt] unified diff mode (permanent if no prompt)
   /edit-whole [prompt] whole-file mode (permanent if no prompt)
   /ask                 return to ask mode
+  /think [prompt]      investigate codebase (read-only, agentic)
+  /think --deep [p]    extended budget investigation (50k tokens)
   /undo                rollback last edit
   /diff                show last diff
   /commit [msg]        git commit changes

@@ -6,3 +6,4 @@ httpx
 aiofiles
 pydantic
 jinja2
+tiktoken
