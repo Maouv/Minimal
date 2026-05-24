@@ -116,7 +116,13 @@ export async function listProjectEntries(
 	return req("GET", `/project/entries${q}`);
 }
 
-export async function listProjectDirs(): Promise<{
+export async function estimateFileTokens(
+	path: string,
+): Promise<{ tokens: number; path: string }> {
+	return req("GET", `/project/token-estimate?path=${encodeURIComponent(path)}`);
+}
+
+
 	dirs: string[];
 	cwd: string;
 }> {

@@ -81,6 +81,34 @@ async def project_dirs():
     return {"dirs": dirs, "cwd": str(cwd)}
 
 
+@router.get("/project/token-estimate")
+async def project_token_estimate(path: str):
+    """
+    Estimasi token count untuk satu file.
+    Dipakai TUI saat browse /add — preview sebelum file masuk context.
+    """
+    from context import _estimate_tokens  # noqa: PLC0415
+
+    cwd = Path(os.getcwd())
+    target = (cwd / path).resolve()
+
+    # Security: jangan keluar dari CWD
+    try:
+        target.relative_to(cwd)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path outside CWD")
+
+    if not target.is_file():
+        raise HTTPException(status_code=400, detail="Not a file")
+
+    try:
+        text = target.read_text(encoding="utf-8", errors="replace")
+        tokens = _estimate_tokens(text)
+        return {"tokens": tokens, "path": path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/project/entries")
 async def project_entries(path: str = ""):
     """
