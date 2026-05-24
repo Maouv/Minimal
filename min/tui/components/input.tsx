@@ -8,6 +8,7 @@ import { useKeyboard } from "@opentui/solid";
 import { createSignal, For, Show } from "solid-js";
 import {
 	abortSession,
+	estimateFileTokens,
 	listProjectDirs,
 	listProjectEntries,
 	listProjectFiles,
@@ -25,6 +26,8 @@ const SLASH_COMMANDS = [
 	{ cmd: "/edit-udiff", desc: "edit with unified diff" },
 	{ cmd: "/edit-whole", desc: "rewrite whole file" },
 	{ cmd: "/ask", desc: "back to ask mode" },
+	{ cmd: "/think", desc: "investigate codebase (read-only, agentic)" },
+	{ cmd: "/think --deep", desc: "extended budget investigation (50k tokens)" },
 	{ cmd: "/undo", desc: "undo last edit" },
 	{ cmd: "/diff", desc: "show last diff" },
 	{ cmd: "/clear", desc: "clear messages" },
@@ -40,6 +43,11 @@ const SLASH_COMMANDS = [
 	{ cmd: "/exit", desc: "exit from minimal" },
 ];
 
+const SPINNER_FRAMES = ["✦ · · ·", "· ✦ · ·", "· · ✦ ·", "· · · ✦"] as const;
+
+function fmtK(n: number): string {
+	return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
 type AcMode = "command" | "file" | "dir";
 interface AcItem {
 	label: string;
@@ -57,6 +65,11 @@ export function InputBox() {
 	const [acItems, setAcItems] = createSignal<AcItem[]>([]);
 	const [acSelected, setAcSelected] = createSignal(0);
 	const [acMode, setAcMode] = createSignal<AcMode>("command");
+	// Preview token estimate saat hovering file di /add list
+	// null = tidak ada preview, number = estimasi token file yang di-hover
+	const [previewTokens, setPreviewTokens] = createSignal<number | null>(null);
+	// Debounce handle supaya fetch tidak spam kalau user nge-scroll cepat
+	let previewDebounce: ReturnType<typeof setTimeout> | null = null;
 	let inputRef: InputRenderable | undefined;
 	// sync ke module-level ref supaya app.tsx bisa refocus setelah ModelPicker tutup
 	const setInputRef = (el: InputRenderable) => {
@@ -142,16 +155,46 @@ export function InputBox() {
 		}
 	}
 
+	// Fetch token estimate untuk file yang sedang di-hover di /add list
+	function fetchPreviewTokens(idx: number) {
+		if (acMode() !== "file") {
+			setPreviewTokens(null);
+			return;
+		}
+		const item = acItems()[idx];
+		if (!item || item.is_dir) {
+			setPreviewTokens(null);
+			return;
+		}
+		if (previewDebounce) clearTimeout(previewDebounce);
+		previewDebounce = setTimeout(async () => {
+			try {
+				const res = await estimateFileTokens(item.desc || item.value);
+				setPreviewTokens(res.tokens);
+			} catch {
+				setPreviewTokens(null);
+			}
+		}, 120); // 120ms debounce — cukup responsif, tidak spam
+	}
+
 	useKeyboard((key) => {
 		if (acItems().length === 0) return;
 		if (key.name === "up") {
 			key.preventDefault();
-			setAcSelected((s) => Math.max(0, s - 1));
+			setAcSelected((s) => {
+				const next = Math.max(0, s - 1);
+				fetchPreviewTokens(next);
+				return next;
+			});
 			return;
 		}
 		if (key.name === "down") {
 			key.preventDefault();
-			setAcSelected((s) => Math.min(acItems().length - 1, s + 1));
+			setAcSelected((s) => {
+				const next = Math.min(acItems().length - 1, s + 1);
+				fetchPreviewTokens(next);
+				return next;
+			});
 			return;
 		}
 		if (key.name === "tab") {
@@ -162,6 +205,7 @@ export function InputBox() {
 		if (key.name === "escape") {
 			key.preventDefault();
 			setAcItems([]);
+			setPreviewTokens(null);
 			return;
 		}
 		if (key.name === "return") {
@@ -318,6 +362,7 @@ export function InputBox() {
 			setAcMode("file");
 			setAcItems(matches);
 			setAcSelected(0);
+			fetchPreviewTokens(0);
 			return;
 		}
 
@@ -349,20 +394,40 @@ export function InputBox() {
 		}
 
 		setAcItems([]);
+		setPreviewTokens(null);
 	}
 
 	const modeLabel = () => {
-		if (state.streaming) return "Thinking...";
+		if (state.streaming) {
+			return SPINNER_FRAMES[state.thinkingFrame] ?? SPINNER_FRAMES[0];
+		}
 		const m: Record<string, string> = {
 			ask: "Ask",
 			"edit-block": "Edit",
 			"edit-udiff": "Edit",
 			"edit-whole": "Edit",
+			think: "◆ Think",
 		};
 		return m[state.mode] ?? state.mode;
 	};
-	const modeColor = () =>
-		state.streaming ? C.green : (MODE_COLOR[state.mode] ?? C.cyan);
+	const modeColor = () => MODE_COLOR[state.mode] ?? C.cyan;
+
+	// Ctx counter — 3 states:
+	// 1. Streaming: "Out N" naik sequential
+	// 2. Preview /add hover on file: "~2.4k" (estimasi, dim tilde prefix)
+	// 3. Normal: "3.2k" dari totalTokens aktual (abu-abu)
+	const ctxStr = () => {
+		if (state.streaming) return `Out ${fmtK(state.liveOutputTokens)}`;
+		const preview = previewTokens();
+		if (preview !== null) return `~${fmtK(state.totalTokens + preview)}`;
+		if (state.totalTokens > 0) return fmtK(state.totalTokens);
+		return "";
+	};
+	const ctxColor = () => {
+		if (state.streaming) return C.gray;
+		if (previewTokens() !== null) return C.orange; // preview = highlight orange/dim
+		return C.gray2;
+	};
 	const isDisabled = () => !!state.showModelPicker;
 
 	return (
@@ -457,13 +522,17 @@ export function InputBox() {
 						/>
 					</box>
 
-					{/* Meta: mode · model */}
+					{/* Meta: mode · model  Ctx N */}
 					<box width="100%" flexDirection="row">
 						<text fg={isDisabled() ? C.gray2 : modeColor()}>
 							{isDisabled() ? "—" : modeLabel()}
 						</text>
 						<text fg={C.gray2}>{" · "}</text>
 						<text fg={C.gray}>{state.model || "—"}</text>
+						<Show when={!isDisabled() && ctxStr() !== ""}>
+							<text fg={C.gray2}>{"  "}</text>
+							<text fg={ctxColor()}>{ctxStr()}</text>
+						</Show>
 					</box>
 				</box>
 			</box>

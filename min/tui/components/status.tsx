@@ -1,25 +1,30 @@
-// status.tsx — status bar paling bawah: Ask · glm-5          minimal
-// + ctx-bar di atas input: src/context.py applied · src/llm.py    3,080 tok
+// status.tsx — status bar paling bawah: Ask · glm-5  Out 0→...  minimal
+// + ctx-bar di atas input: context.py · llm.py +2   12.4k tok
 import { createMemo, For, Show } from "solid-js";
 import { state } from "../state.ts";
 import { C, MODE_COLOR } from "../theme.ts";
+
+const SPINNER_FRAMES = ["✦ · · ·", "· ✦ · ·", "· · ✦ ·", "· · · ✦"] as const;
 
 function fmtK(n: number): string {
 	return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
 // ── Status bar — paling bawah ─────────────────────────────────────────────────
-// Ask · glm-5  [sess:abc123]                              minimal
-// In think mode + streaming: shows active tool if running
+// Ask · glm-5  Out 847  [sess:abc123]                    minimal
+// Saat streaming: mode label jadi spinner ✦ · · ·
+// Saat think + tool aktif: spinner + nama tool
 export function StatusBar() {
 	const modeColor = createMemo(() => MODE_COLOR[state.mode] ?? C.cyan);
 
 	const modeLabel = createMemo(() => {
-		if (state.streaming && state.mode === "think") {
-			if (state.thinkActiveTool) return `◆ ${state.thinkActiveTool}…`;
-			return "◆ think";
+		if (state.streaming) {
+			const frame = SPINNER_FRAMES[state.thinkingFrame] ?? SPINNER_FRAMES[0];
+			if (state.mode === "think" && state.thinkActiveTool) {
+				return `${frame}  ${state.thinkActiveTool}…`;
+			}
+			return frame;
 		}
-		if (state.streaming) return "Thinking...";
 		const m: Record<string, string> = {
 			ask: "Ask",
 			"edit-block": "Edit",
@@ -36,6 +41,11 @@ export function StatusBar() {
 		return sid.length > 8 ? sid.slice(-8) : sid;
 	});
 
+	// liveOutputTokens streaming naik 0→1→2→... per token flush
+	const outStr = createMemo(() =>
+		state.streaming ? `Out ${fmtK(state.liveOutputTokens)}` : "",
+	);
+
 	return (
 		<box
 			width="100%"
@@ -49,6 +59,10 @@ export function StatusBar() {
 			<text fg={modeColor()}>{modeLabel()}</text>
 			<text fg={C.gray2}>{" · "}</text>
 			<text fg={C.gray}>{state.model || "—"}</text>
+			<Show when={state.streaming}>
+				<text fg={C.gray2}>{"  "}</text>
+				<text fg={C.gray}>{outStr()}</text>
+			</Show>
 			<Show when={shortSession()}>
 				<text fg={C.gray3}>{`  [${shortSession()}]`}</text>
 			</Show>
