@@ -25,6 +25,8 @@ const SLASH_COMMANDS = [
 	{ cmd: "/edit-udiff", desc: "edit with unified diff" },
 	{ cmd: "/edit-whole", desc: "rewrite whole file" },
 	{ cmd: "/ask", desc: "back to ask mode" },
+	{ cmd: "/think", desc: "investigate codebase (read-only, agentic)" },
+	{ cmd: "/think --deep", desc: "extended budget investigation (50k tokens)" },
 	{ cmd: "/undo", desc: "undo last edit" },
 	{ cmd: "/diff", desc: "show last diff" },
 	{ cmd: "/clear", desc: "clear messages" },
@@ -40,6 +42,11 @@ const SLASH_COMMANDS = [
 	{ cmd: "/exit", desc: "exit from minimal" },
 ];
 
+const SPINNER_FRAMES = ["✦ · · ·", "· ✦ · ·", "· · ✦ ·", "· · · ✦"] as const;
+
+function fmtK(n: number): string {
+	return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
 type AcMode = "command" | "file" | "dir";
 interface AcItem {
 	label: string;
@@ -352,17 +359,21 @@ export function InputBox() {
 	}
 
 	const modeLabel = () => {
-		if (state.streaming) return "Thinking...";
+		if (state.streaming) {
+			return SPINNER_FRAMES[state.thinkingFrame] ?? SPINNER_FRAMES[0];
+		}
 		const m: Record<string, string> = {
 			ask: "Ask",
 			"edit-block": "Edit",
 			"edit-udiff": "Edit",
 			"edit-whole": "Edit",
+			think: "◆ Think",
 		};
 		return m[state.mode] ?? state.mode;
 	};
-	const modeColor = () =>
-		state.streaming ? C.green : (MODE_COLOR[state.mode] ?? C.cyan);
+	const modeColor = () => MODE_COLOR[state.mode] ?? C.cyan;
+	const outStr = () =>
+		state.streaming ? `Out ${fmtK(state.liveOutputTokens)}` : "";
 	const isDisabled = () => !!state.showModelPicker;
 
 	return (
@@ -457,13 +468,17 @@ export function InputBox() {
 						/>
 					</box>
 
-					{/* Meta: mode · model */}
+					{/* Meta: mode · model  Out N (saat streaming) */}
 					<box width="100%" flexDirection="row">
 						<text fg={isDisabled() ? C.gray2 : modeColor()}>
 							{isDisabled() ? "—" : modeLabel()}
 						</text>
 						<text fg={C.gray2}>{" · "}</text>
 						<text fg={C.gray}>{state.model || "—"}</text>
+						<Show when={state.streaming && !isDisabled()}>
+							<text fg={C.gray2}>{"  "}</text>
+							<text fg={C.gray}>{outStr()}</text>
+						</Show>
 					</box>
 				</box>
 			</box>
