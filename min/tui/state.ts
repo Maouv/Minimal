@@ -36,6 +36,10 @@ export interface AppState {
 	totalTokens: number;
 	inputTokens: number;
 	outputTokens: number;
+	// ── Session output tokens — accumulated dari semua AI turns ──────────────
+	// Ini yang di-merge ke Ctx display setiap turn selesai.
+	// Reset saat /reset atau /clear. Tidak pernah berkurang.
+	sessionOutputTokens: number;
 	// ── Thinking indicator state ──────────────────────────────────────────────
 	// Updated externally by stream.ts ticker
 	thinkingFrame: number;        // 0-3, cycles for ✦ · · · animation
@@ -47,6 +51,7 @@ export interface AppState {
 	// ─────────────────────────────────────────────────────────────────────────
 	error: string | null;
 	showModelPicker: "switch" | "add" | false;
+	ctxBarExpanded: boolean;  // ctrl+x toggle expand context bar
 }
 
 export const [state, setState] = createStore<AppState>({
@@ -59,6 +64,7 @@ export const [state, setState] = createStore<AppState>({
 	totalTokens: 0,
 	inputTokens: 0,
 	outputTokens: 0,
+	sessionOutputTokens: 0,
 	thinkingFrame: 0,
 	liveOutputTokens: 0,
 	lastInputTokens: 0,
@@ -66,6 +72,7 @@ export const [state, setState] = createStore<AppState>({
 	thinkUsedTokens: 0,
 	error: null,
 	showModelPicker: false,
+	ctxBarExpanded: false,
 });
 
 export function pushMessage(role: MessageRole, content = ""): number {
@@ -100,4 +107,5 @@ export function resetAll() {
 	setState("messages", []);
 	setState("contextFiles", []);
 	setState("totalTokens", 0);
+	setState("sessionOutputTokens", 0);
 }

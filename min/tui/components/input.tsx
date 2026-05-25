@@ -178,6 +178,13 @@ export function InputBox() {
 	}
 
 	useKeyboard((key) => {
+		// Ctrl+X — toggle expand context bar, global (works regardless of ac menu)
+		if (key.ctrl && key.name === "x") {
+			key.preventDefault();
+			setState("ctxBarExpanded", (v) => !v);
+			return;
+		}
+
 		if (acItems().length === 0) return;
 		if (key.name === "up") {
 			key.preventDefault();
@@ -412,22 +419,17 @@ export function InputBox() {
 	};
 	const modeColor = () => MODE_COLOR[state.mode] ?? C.cyan;
 
-	// Ctx counter — 3 states:
-	// 1. Streaming: "Out N" naik sequential
-	// 2. Preview /add hover on file: "~2.4k" (estimasi, dim tilde prefix)
-	// 3. Normal: "3.2k" dari totalTokens aktual (abu-abu)
-	const ctxStr = () => {
-		if (state.streaming) return `Out ${fmtK(state.liveOutputTokens)}`;
-		const preview = previewTokens();
-		if (preview !== null) return `~${fmtK(state.totalTokens + preview)}`;
-		if (state.totalTokens > 0) return fmtK(state.totalTokens);
-		return "";
-	};
-	const ctxColor = () => {
-		if (state.streaming) return C.gray;
-		if (previewTokens() !== null) return C.orange; // preview = highlight orange/dim
-		return C.gray2;
-	};
+	// Ctx = totalTokens (context files) + sessionOutputTokens (accumulated AI turns)
+	// Tidak pernah berkurang, hanya nambah. Reset saat /reset.
+	const ctxTokens = () => state.totalTokens + state.sessionOutputTokens;
+
+	// Out = live output tokens saat streaming (chars ÷ 4, naik per token)
+	// Reset ke 0 saat done — sudah di-merge ke sessionOutputTokens
+	const outTokens = () => state.liveOutputTokens;
+
+	const ctxStr = () => `Ctx ${fmtK(ctxTokens())}`;
+	const outStr = () => `Out ${fmtK(outTokens())}`;
+
 	const isDisabled = () => !!state.showModelPicker;
 
 	return (
@@ -522,16 +524,18 @@ export function InputBox() {
 						/>
 					</box>
 
-					{/* Meta: mode · model  Ctx N */}
+					{/* Meta: mode · model  Ctx X · Out Y */}
 					<box width="100%" flexDirection="row">
 						<text fg={isDisabled() ? C.gray2 : modeColor()}>
 							{isDisabled() ? "—" : modeLabel()}
 						</text>
 						<text fg={C.gray2}>{" · "}</text>
 						<text fg={C.gray}>{state.model || "—"}</text>
-						<Show when={!isDisabled() && ctxStr() !== ""}>
-							<text fg={C.gray2}>{"  "}</text>
-							<text fg={ctxColor()}>{ctxStr()}</text>
+						<Show when={!isDisabled()}>
+							<text fg={C.gray3}>{"  "}</text>
+							<text fg={C.gray2}>{ctxStr()}</text>
+							<text fg={C.gray3}>{" · "}</text>
+							<text fg={state.streaming ? C.gray : C.gray3}>{outStr()}</text>
 						</Show>
 					</box>
 				</box>

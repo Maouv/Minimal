@@ -5,7 +5,6 @@
 import { createMemo, For, Show } from "solid-js";
 import { type EditResult, type Message, state } from "../state.ts";
 import { C, getMonokaiStyle } from "../theme.ts";
-import { ThinkingIndicator } from "./thinking.tsx";
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyPromptBox(props: { text: string; dim?: boolean }) {
@@ -166,32 +165,7 @@ function DiffBlock(props: { diff: string; file: string }) {
 	);
 }
 
-// StreamingMsg: reactive, re-renders per token flush.
-// Only mounted for the one message actively being streamed.
-function StreamingMsg(props: { msg: Message }) {
-	const syntaxStyle = getMonokaiStyle();
-	const content = createMemo(() => stripEditBlocks(props.msg.content));
-	return (
-		<box
-			width="100%"
-			flexDirection="column"
-			paddingLeft={3}
-			paddingRight={3}
-			paddingTop={1}
-			paddingBottom={1}
-			backgroundColor={C.bg}
-		>
-			<markdown
-				content={content()}
-				syntaxStyle={syntaxStyle}
-				conceal
-				fg={C.white}
-				streaming={true}
-				width="100%"
-			/>
-		</box>
-	);
-}
+// ── AI message ────────────────────────────────────────────────────────────────
 
 function DiffHeader(props: { edit: EditResult }) {
 	const added = (props.edit.diff.match(/^\+[^+]/gm) ?? []).length;
@@ -232,27 +206,66 @@ function FrozenMsgDiffs(props: { edits?: Message["edits"] }) {
 	);
 }
 
-function FrozenMsg(props: { content: string; edits?: Message["edits"] }) {
-	const syntaxStyle = getMonokaiStyle();
-	return (
-		<box width="100%" flexDirection="column" paddingLeft={3} paddingRight={3}
-			paddingTop={1} paddingBottom={1} backgroundColor={C.bg}
-		>
-			<markdown content={props.content} syntaxStyle={syntaxStyle}
-				conceal fg={C.white} streaming={false} width="100%"
-			/>
-			<FrozenMsgDiffs edits={props.edits} />
-		</box>
-	);
-}
+// FrozenMsgDiffs — rendered inside AiMsg after message done
 
-// Dispatch: frozen vs streaming. streaming index is always the last assistant msg.
+// Dispatch: frozen vs streaming.
+// CRITICAL: kondisi HARUS di dalam JSX (<Show>) bukan di function body,
+// supaya Solid bisa track reactive dependency props.msg.done.
+// Function body di Solid hanya di-evaluate sekali saat mount — tidak reaktif.
 function AiMsg(props: { msg: Message; isStreaming: boolean }) {
-	if (!props.isStreaming && props.msg.done) {
-		const content = props.msg.displayContent ?? stripEditBlocks(props.msg.content);
-		return <FrozenMsg content={content} edits={props.msg.edits} />;
-	}
-	return <StreamingMsg msg={props.msg} />;
+	const syntaxStyle = getMonokaiStyle();
+	const frozenContent = createMemo(() =>
+		props.msg.displayContent ?? stripEditBlocks(props.msg.content),
+	);
+	const streamContent = createMemo(() => stripEditBlocks(props.msg.content));
+
+	return (
+		<Show
+			when={!props.isStreaming && props.msg.done}
+			fallback={
+				// StreamingMsg — reactive per token flush
+				<box
+					width="100%"
+					flexDirection="column"
+					paddingLeft={3}
+					paddingRight={3}
+					paddingTop={1}
+					paddingBottom={1}
+					backgroundColor={C.bg}
+				>
+					<markdown
+						content={streamContent()}
+						syntaxStyle={syntaxStyle}
+						conceal
+						fg={C.white}
+						streaming={true}
+						width="100%"
+					/>
+				</box>
+			}
+		>
+			{/* FrozenMsg — static, no re-renders */}
+			<box
+				width="100%"
+				flexDirection="column"
+				paddingLeft={3}
+				paddingRight={3}
+				paddingTop={1}
+				paddingBottom={1}
+				backgroundColor={C.bg}
+			>
+				<markdown
+					content={frozenContent()}
+					syntaxStyle={syntaxStyle}
+					conceal
+					fg={C.white}
+					streaming={false}
+					width="100%"
+				/>
+				<FrozenMsgDiffs edits={props.msg.edits} />
+			</box>
+		</Show>
+	);
 }
 
 // ── Chat view ─────────────────────────────────────────────────────────────────
@@ -282,14 +295,6 @@ export function ChatView() {
 		return -1;
 	});
 
-	const showThinkingIndicator = createMemo(() => {
-		if (!state.streaming) return false;
-		const msgs = state.messages;
-		if (msgs.length === 0) return true;
-		const last = msgs[msgs.length - 1];
-		return last.role !== "assistant" || last.content === "";
-	});
-
 	const offset = createMemo(
 		() => state.messages.length - visibleMessages().length,
 	);
@@ -313,7 +318,6 @@ export function ChatView() {
 						/>
 					)}
 				</For>
-				<Show when={showThinkingIndicator()}><ThinkingIndicator /></Show>
 			</box>
 		</scrollbox>
 	);

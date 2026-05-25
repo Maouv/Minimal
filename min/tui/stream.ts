@@ -264,6 +264,9 @@ export async function consumeStream(response: Response): Promise<void> {
 				setState("streaming", false);
 				setState("inputTokens", state.inputTokens + (e.input_tokens ?? 0));
 				setState("outputTokens", state.outputTokens + (e.output_tokens ?? 0));
+				// Merge output tokens dari turn ini ke sessionOutputTokens
+				// sessionOutputTokens + totalTokens = total Ctx yang ditampilkan
+				setState("sessionOutputTokens", state.sessionOutputTokens + (e.output_tokens ?? 0));
 				setState("lastInputTokens", e.input_tokens ?? 0);
 				assistantIdx = -1;
 				pendingEdits.length = 0;
